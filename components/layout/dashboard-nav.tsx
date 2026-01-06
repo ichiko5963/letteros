@@ -12,6 +12,7 @@ import {
   BarChart3,
   Settings,
   Package,
+  Users,
 } from 'lucide-react';
 
 const navItems = [
@@ -24,6 +25,11 @@ const navItems = [
     title: 'ニュースレター',
     href: '/newsletters',
     icon: Mail,
+  },
+  {
+    title: '購読者',
+    href: '/subscribers',
+    icon: Users,
   },
   {
     title: 'プロダクト',

@@ -15,6 +15,22 @@ import {
 } from '@/components/ui/card';
 import { Mail, Users, TrendingUp, Send } from 'lucide-react';
 
+// Skeleton component for loading state
+function StatCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+        <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-8 w-16 bg-muted animate-pulse rounded mb-2" />
+        <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -34,17 +50,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (user) {
-      // Set a timeout for Firestore operations (5 seconds)
+      // Quick timeout (2 seconds) - show content faster
       const timeoutId = setTimeout(() => {
-        console.warn('Dashboard stats loading timed out');
         setLoadingStats(false);
-      }, 5000);
+      }, 2000);
 
       getDashboardStats(user.uid)
         .then(setStats)
         .catch((error) => {
           console.error('Failed to load dashboard stats:', error);
-          // Use default stats on error
         })
         .finally(() => {
           clearTimeout(timeoutId);
@@ -53,15 +67,23 @@ export default function DashboardPage() {
 
       return () => clearTimeout(timeoutId);
     } else if (!loading) {
-      // User is not logged in, stop loading
       setLoadingStats(false);
     }
   }, [user, loading]);
 
+  // Show skeleton while auth is loading
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">読み込み中...</p>
+      <div className="space-y-8">
+        <div>
+          <div className="h-9 w-48 bg-muted animate-pulse rounded mb-2" />
+          <div className="h-5 w-64 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -102,30 +124,34 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-3xl font-bold">ダッシュボード</h1>
         <p className="text-muted-foreground mt-2">
-          ようこそ、{user.displayName}さん
+          ようこそ、{user.displayName || user.email}さん
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {stat.title}
-                </CardTitle>
-                <Icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {stat.description}
-                </p>
-              </CardContent>
-            </Card>
-          );
-        })}
+        {loadingStats ? (
+          [...Array(4)].map((_, i) => <StatCardSkeleton key={i} />)
+        ) : (
+          statCards.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <Card key={stat.title}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    {stat.title}
+                  </CardTitle>
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stat.description}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </div>
     </div>
   );
