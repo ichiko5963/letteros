@@ -4,7 +4,7 @@
 import { cookies } from 'next/headers';
 import { adminAuth } from './admin';
 
-const SESSION_COOKIE_NAME = 'session';
+export const SESSION_COOKIE_NAME = 'session';
 
 /**
  * Verify session token on server

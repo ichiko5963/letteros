@@ -1,10 +1,13 @@
-// Newsletters List Page
+// Newsletters List Page (Firebase)
 // Reference: @docs/02_FRONTEND_DEVELOPMENT/REACT_SERVER_COMPONENTS.md
 
-import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
-import { db } from '@/lib/db';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/components/providers/auth-provider';
+import { getUserNewsletters, Newsletter } from '@/lib/firebase/firestore-helpers';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -16,30 +19,47 @@ import {
 import { Plus, Mail, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
-export default async function NewslettersPage() {
-  const session = await auth();
+const statusConfig = {
+  DRAFT: { label: '下書き', icon: Clock, color: 'text-yellow-600' },
+  SCHEDULED: { label: '配信予約', icon: Clock, color: 'text-blue-600' },
+  SENT: { label: '配信済み', icon: CheckCircle2, color: 'text-green-600' },
+  FAILED: { label: '失敗', icon: XCircle, color: 'text-red-600' },
+};
 
-  if (!session?.user) {
-    redirect('/login');
+export default function NewslettersPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const [newsletters, setNewsletters] = useState<Newsletter[]>([]);
+  const [loadingNewsletters, setLoadingNewsletters] = useState(true);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      getUserNewsletters(user.uid)
+        .then(setNewsletters)
+        .catch((error) => {
+          console.error('Failed to load newsletters:', error);
+        })
+        .finally(() => setLoadingNewsletters(false));
+    }
+  }, [user]);
+
+  if (loading || loadingNewsletters) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">読み込み中...</p>
+      </div>
+    );
   }
 
-  const newsletters = await db.newsletter.findMany({
-    where: { userId: session.user.id },
-    include: {
-      product: true,
-      _count: {
-        select: { emails: true },
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  const statusConfig = {
-    DRAFT: { label: '下書き', icon: Clock, color: 'text-yellow-600' },
-    SCHEDULED: { label: '配信予約', icon: Clock, color: 'text-blue-600' },
-    SENT: { label: '配信済み', icon: CheckCircle2, color: 'text-green-600' },
-    FAILED: { label: '失敗', icon: XCircle, color: 'text-red-600' },
-  };
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="space-y-8">
@@ -79,7 +99,7 @@ export default async function NewslettersPage() {
       ) : (
         <div className="grid gap-4">
           {newsletters.map((newsletter) => {
-            const status = statusConfig[newsletter.status];
+            const status = statusConfig[newsletter.status as keyof typeof statusConfig] || statusConfig.DRAFT;
             const StatusIcon = status.icon;
 
             return (
@@ -91,9 +111,9 @@ export default async function NewslettersPage() {
                         {newsletter.title}
                       </CardTitle>
                       <CardDescription className="mt-2">
-                        {newsletter.product?.name && (
+                        {newsletter.productName && (
                           <span className="inline-flex items-center px-2 py-1 rounded-md bg-primary/10 text-xs font-medium mr-2">
-                            {newsletter.product.name}
+                            {newsletter.productName}
                           </span>
                         )}
                         <span className={`inline-flex items-center gap-1 ${status.color}`}>
@@ -112,21 +132,18 @@ export default async function NewslettersPage() {
                 <CardContent>
                   <div className="flex items-center gap-6 text-sm text-muted-foreground">
                     <div>
-                      作成日: {formatDateTime(newsletter.createdAt)}
+                      作成日: {newsletter.createdAt ? formatDateTime(newsletter.createdAt.toDate()) : '-'}
                     </div>
                     {newsletter.scheduledAt && (
                       <div>
-                        配信予定: {formatDateTime(newsletter.scheduledAt)}
+                        配信予定: {formatDateTime(newsletter.scheduledAt.toDate())}
                       </div>
                     )}
                     {newsletter.sentAt && (
                       <div>
-                        配信日: {formatDateTime(newsletter.sentAt)}
+                        配信日: {formatDateTime(newsletter.sentAt.toDate())}
                       </div>
                     )}
-                    <div>
-                      配信数: {newsletter._count.emails}
-                    </div>
                   </div>
                 </CardContent>
               </Card>

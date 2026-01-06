@@ -1,8 +1,8 @@
-// AI Chat API
+// AI Chat API (Firebase)
 // Reference: @docs/03_BACKEND_API/API_DESIGN_GUIDE.md
 
-import { auth } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
+import { verifySession } from '@/lib/firebase/server-auth';
 import { chatWithEditor } from '@/lib/ai/generate';
 import { z } from 'zod';
 
@@ -18,9 +18,9 @@ const chatSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await verifySession();
 
-    if (!session?.user) {
+    if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

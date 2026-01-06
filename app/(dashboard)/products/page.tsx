@@ -1,10 +1,13 @@
-// Products List Page
+// Products List Page (Firebase)
 // Reference: @docs/02_FRONTEND_DEVELOPMENT/REACT_SERVER_COMPONENTS.md
 
-import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
-import { db } from '@/lib/db';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/components/providers/auth-provider';
+import { getUserProducts, Product } from '@/lib/firebase/firestore-helpers';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -15,25 +18,40 @@ import {
 } from '@/components/ui/card';
 import { Plus, Package } from 'lucide-react';
 
-export default async function ProductsPage() {
-  const session = await auth();
+export default function ProductsPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
-  if (!session?.user) {
-    redirect('/login');
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      getUserProducts(user.uid)
+        .then(setProducts)
+        .catch((error) => {
+          console.error('Failed to load products:', error);
+        })
+        .finally(() => setLoadingProducts(false));
+    }
+  }, [user]);
+
+  if (loading || loadingProducts) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">読み込み中...</p>
+      </div>
+    );
   }
 
-  const products = await db.product.findMany({
-    where: { userId: session.user.id },
-    include: {
-      _count: {
-        select: {
-          newsletters: true,
-          subscribers: true,
-        },
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="space-y-8">
@@ -83,12 +101,8 @@ export default async function ProductsPage() {
               <CardContent>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">ニュースレター</span>
-                    <span className="font-medium">{product._count.newsletters}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">購読者</span>
-                    <span className="font-medium">{product._count.subscribers}</span>
+                    <span className="font-medium">{product.subscriberCount || 0}</span>
                   </div>
                   <Button variant="outline" size="sm" className="w-full mt-4" asChild>
                     <Link href={`/products/${product.id}`}>

@@ -1,22 +1,51 @@
-// New Newsletter Page
+// New Newsletter Page (Firebase)
 // Reference: @docs/02_FRONTEND_DEVELOPMENT/REACT_SERVER_COMPONENTS.md
 
-import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
-import { db } from '@/lib/db';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/providers/auth-provider';
+import { getUserProducts, Product } from '@/lib/firebase/firestore-helpers';
 import { NewsletterForm } from '@/components/newsletters/newsletter-form';
 
-export default async function NewNewsletterPage() {
-  const session = await auth();
+export default function NewNewsletterPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
-  if (!session?.user) {
-    redirect('/login');
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      getUserProducts(user.uid)
+        .then(setProducts)
+        .catch((error) => {
+          console.error('Failed to load products:', error);
+        })
+        .finally(() => setLoadingProducts(false));
+    }
+  }, [user]);
+
+  if (loading || loadingProducts) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">読み込み中...</p>
+      </div>
+    );
   }
 
-  const products = await db.product.findMany({
-    where: { userId: session.user.id },
-    select: { id: true, name: true },
-  });
+  if (!user) {
+    return null;
+  }
+
+  // Transform products to match the expected format
+  const productOptions = products.map(p => ({ id: p.id!, name: p.name }));
 
   return (
     <div className="space-y-8">
@@ -27,7 +56,7 @@ export default async function NewNewsletterPage() {
         </p>
       </div>
 
-      <NewsletterForm products={products} />
+      <NewsletterForm products={productOptions} />
     </div>
   );
 }
