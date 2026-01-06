@@ -34,13 +34,31 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (user) {
+      // Set a timeout for Firestore operations (5 seconds)
+      const timeoutId = setTimeout(() => {
+        console.warn('Dashboard stats loading timed out');
+        setLoadingStats(false);
+      }, 5000);
+
       getDashboardStats(user.uid)
         .then(setStats)
-        .finally(() => setLoadingStats(false));
-    }
-  }, [user]);
+        .catch((error) => {
+          console.error('Failed to load dashboard stats:', error);
+          // Use default stats on error
+        })
+        .finally(() => {
+          clearTimeout(timeoutId);
+          setLoadingStats(false);
+        });
 
-  if (loading || loadingStats) {
+      return () => clearTimeout(timeoutId);
+    } else if (!loading) {
+      // User is not logged in, stop loading
+      setLoadingStats(false);
+    }
+  }, [user, loading]);
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-muted-foreground">読み込み中...</p>

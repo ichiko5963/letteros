@@ -72,17 +72,22 @@ export async function getNewsletter(id: string): Promise<Newsletter | null> {
 }
 
 export async function getUserNewsletters(userId: string): Promise<Newsletter[]> {
-  const q = query(
-    collection(db, 'newsletters'),
-    where('userId', '==', userId),
-    orderBy('createdAt', 'desc')
-  );
+  try {
+    const q = query(
+      collection(db, 'newsletters'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
 
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Newsletter[];
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Newsletter[];
+  } catch (error) {
+    console.error('Failed to get user newsletters:', error);
+    return [];
+  }
 }
 
 export async function updateNewsletter(id: string, data: Partial<Newsletter>) {
@@ -120,17 +125,22 @@ export async function getProduct(id: string): Promise<Product | null> {
 }
 
 export async function getUserProducts(userId: string): Promise<Product[]> {
-  const q = query(
-    collection(db, 'products'),
-    where('userId', '==', userId),
-    orderBy('createdAt', 'desc')
-  );
+  try {
+    const q = query(
+      collection(db, 'products'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
 
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Product[];
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Product[];
+  } catch (error) {
+    console.error('Failed to get user products:', error);
+    return [];
+  }
 }
 
 export async function updateProduct(id: string, data: Partial<Product>) {
@@ -181,26 +191,42 @@ export async function unsubscribe(subscriberId: string) {
 
 // Dashboard Stats
 export async function getDashboardStats(userId: string) {
-  const newsletters = await getUserNewsletters(userId);
-  const products = await getUserProducts(userId);
-
-  const newsletterCount = newsletters.length;
-  const productCount = products.length;
-  const sentCount = newsletters.filter(n => n.status === 'SENT').length;
-
-  // Count subscribers across all products
-  let totalSubscribers = 0;
-  for (const product of products) {
-    if (product.id) {
-      const subscribers = await getProductSubscribers(product.id);
-      totalSubscribers += subscribers.length;
-    }
-  }
-
-  return {
-    newsletterCount,
-    productCount,
-    totalSubscribers,
-    sentCount,
+  const defaultStats = {
+    newsletterCount: 0,
+    productCount: 0,
+    totalSubscribers: 0,
+    sentCount: 0,
   };
+
+  try {
+    const newsletters = await getUserNewsletters(userId);
+    const products = await getUserProducts(userId);
+
+    const newsletterCount = newsletters.length;
+    const productCount = products.length;
+    const sentCount = newsletters.filter(n => n.status === 'SENT').length;
+
+    // Count subscribers across all products
+    let totalSubscribers = 0;
+    for (const product of products) {
+      if (product.id) {
+        try {
+          const subscribers = await getProductSubscribers(product.id);
+          totalSubscribers += subscribers.length;
+        } catch (error) {
+          console.error('Failed to get subscribers for product:', product.id, error);
+        }
+      }
+    }
+
+    return {
+      newsletterCount,
+      productCount,
+      totalSubscribers,
+      sentCount,
+    };
+  } catch (error) {
+    console.error('Failed to get dashboard stats:', error);
+    return defaultStats;
+  }
 }
