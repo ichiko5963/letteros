@@ -26,10 +26,28 @@ export interface Newsletter {
   content: string;
   status: 'DRAFT' | 'SCHEDULED' | 'SENT' | 'FAILED';
   productId?: string;
+  productName?: string;
   scheduledAt?: Timestamp | null;
   sentAt?: Timestamp | null;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+  // LetterOS hypothesis tracking
+  hypothesis?: {
+    plan?: {
+      targetSegment: string;
+      currentBelief: string;
+      desiredBelief: string;
+      mainPoint: string;
+      proof: string;
+      cta: string;
+    };
+    selectedVariants?: {
+      subject?: string;
+      introduction?: string;
+      structure?: string;
+      conclusion?: string;
+    };
+  };
 }
 
 export interface Product {
@@ -37,8 +55,14 @@ export interface Product {
   userId: string;
   name: string;
   description: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  // LetterOS product definition (発信主体)
+  targetAudience?: string;  // どんな読者に
+  valueProposition?: string;  // どんな価値を
+  tone?: string;  // どんなトーンで
+  coreMessage?: string;  // コアメッセージ
+  subscriberCount?: number;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface Subscriber {
