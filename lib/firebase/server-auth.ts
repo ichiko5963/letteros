@@ -11,6 +11,10 @@ const SESSION_COOKIE_NAME = 'session';
  */
 export async function verifySession() {
   try {
+    if (!adminAuth) {
+      return null;
+    }
+
     const cookieStore = await cookies();
     const session = cookieStore.get(SESSION_COOKIE_NAME);
 
@@ -29,6 +33,10 @@ export async function verifySession() {
  * Get current user on server
  */
 export async function getCurrentUser() {
+  if (!adminAuth) {
+    return null;
+  }
+
   const decodedToken = await verifySession();
 
   if (!decodedToken) {
