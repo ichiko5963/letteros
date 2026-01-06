@@ -1,4 +1,4 @@
-// Newsletter Form Component
+// Newsletter Form Component (Firebase)
 // Reference: @docs/02_FRONTEND_DEVELOPMENT/STATE_MANAGEMENT.md
 
 'use client';
@@ -11,7 +11,6 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
 import {
   Form,
   FormControl,
@@ -28,7 +27,19 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { createNewsletter, updateNewsletter, deleteNewsletter } from '@/lib/actions/newsletter';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { 
+  createNewsletter, 
+  updateNewsletter, 
+  deleteNewsletter 
+} from '@/lib/firebase/firestore-helpers';
+import { useAuth } from '@/components/providers/auth-provider';
 import { Loader2, Save, Trash2 } from 'lucide-react';
 
 const newsletterFormSchema = z.object({
@@ -36,7 +47,6 @@ const newsletterFormSchema = z.object({
   content: z.string().min(1, 'コンテンツは必須です'),
   productId: z.string().optional(),
   status: z.enum(['DRAFT', 'SCHEDULED', 'SENT', 'FAILED']).optional(),
-  scheduledAt: z.string().optional(),
 });
 
 type NewsletterFormValues = z.infer<typeof newsletterFormSchema>;
@@ -48,13 +58,13 @@ interface NewsletterFormProps {
     content: string;
     productId: string | null;
     status: string;
-    scheduledAt: Date | null;
   };
   products: { id: string; name: string }[];
 }
 
 export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -65,30 +75,40 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
       content: newsletter?.content || '',
       productId: newsletter?.productId || '',
       status: (newsletter?.status as any) || 'DRAFT',
-      scheduledAt: newsletter?.scheduledAt
-        ? new Date(newsletter.scheduledAt).toISOString().slice(0, 16)
-        : '',
     },
   });
 
   async function onSubmit(data: NewsletterFormValues) {
+    if (!user) return;
+    
     setIsLoading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('title', data.title);
-      formData.append('content', data.content);
-      if (data.productId) formData.append('productId', data.productId);
-      if (data.status) formData.append('status', data.status);
-      if (data.scheduledAt) formData.append('scheduledAt', data.scheduledAt);
-
+      const selectedProduct = products.find(p => p.id === data.productId);
+      
       if (newsletter) {
-        await updateNewsletter(newsletter.id, formData);
+        await updateNewsletter(newsletter.id, {
+          title: data.title,
+          content: data.content,
+          productId: data.productId || undefined,
+          productName: selectedProduct?.name,
+          status: data.status || 'DRAFT',
+        });
+        router.refresh();
       } else {
-        await createNewsletter(formData);
+        const id = await createNewsletter({
+          userId: user.uid,
+          title: data.title,
+          content: data.content,
+          productId: data.productId || undefined,
+          productName: selectedProduct?.name,
+          status: data.status || 'DRAFT',
+        });
+        router.push(`/newsletters/${id}`);
       }
     } catch (error) {
       console.error('Failed to save newsletter:', error);
+      alert('保存に失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -105,8 +125,10 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
 
     try {
       await deleteNewsletter(newsletter.id);
+      router.push('/newsletters');
     } catch (error) {
       console.error('Failed to delete newsletter:', error);
+      alert('削除に失敗しました');
       setIsDeleting(false);
     }
   }
@@ -166,7 +188,7 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
           <CardHeader>
             <CardTitle>配信設定</CardTitle>
             <CardDescription>
-              プロダクト、ステータス、配信日時を設定してください
+              プロダクトとステータスを設定してください
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -176,16 +198,20 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>プロダクト（任意）</FormLabel>
-                  <FormControl>
-                    <Select {...field}>
-                      <option value="">プロダクトを選択</option>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="プロダクトを選択" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
                       {products.map((product) => (
-                        <option key={product.id} value={product.id}>
+                        <SelectItem key={product.id} value={product.id}>
                           {product.name}
-                        </option>
+                        </SelectItem>
                       ))}
-                    </Select>
-                  </FormControl>
+                    </SelectContent>
+                  </Select>
                   <FormDescription>
                     このニュースレターを紐付けるプロダクトを選択
                   </FormDescription>
@@ -200,30 +226,18 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>ステータス</FormLabel>
-                  <FormControl>
-                    <Select {...field}>
-                      <option value="DRAFT">下書き</option>
-                      <option value="SCHEDULED">配信予約</option>
-                      <option value="SENT">配信済み</option>
-                    </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="scheduledAt"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>配信予定日時（任意）</FormLabel>
-                  <FormControl>
-                    <Input type="datetime-local" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    配信予約する場合は日時を設定してください
-                  </FormDescription>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="ステータスを選択" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="DRAFT">下書き</SelectItem>
+                      <SelectItem value="SCHEDULED">配信予約</SelectItem>
+                      <SelectItem value="SENT">配信済み</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
