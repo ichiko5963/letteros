@@ -1,10 +1,10 @@
-// Email Sending Utilities
+// Email Sending Utilities (Firebase)
 // Reference: @docs/05_EMAIL_DELIVERY/RESEND_INTEGRATION.md
 
 import { resend, EMAIL_CONFIG } from './resend';
 import { render } from '@react-email/components';
 import NewsletterEmail from '@/emails/newsletter-template';
-import { db } from '@/lib/db';
+import { getNewsletter } from '@/lib/firebase/firestore-helpers';
 
 interface SendNewsletterParams {
   newsletterId: string;
@@ -20,10 +20,7 @@ export async function sendNewsletter({
   to,
   subscriberId,
 }: SendNewsletterParams) {
-  const newsletter = await db.newsletter.findUnique({
-    where: { id: newsletterId },
-    include: { product: true },
-  });
+  const newsletter = await getNewsletter(newsletterId);
 
   if (!newsletter) {
     throw new Error('Newsletter not found');
@@ -33,11 +30,11 @@ export async function sendNewsletter({
     ? `${process.env.NEXT_PUBLIC_APP_URL}/unsubscribe/${subscriberId}`
     : undefined;
 
-  const emailHtml = render(
+  const emailHtml = await render(
     NewsletterEmail({
       title: newsletter.title,
       content: newsletter.content,
-      productName: newsletter.product?.name,
+      productName: newsletter.productName,
       unsubscribeUrl,
     })
   );
@@ -48,20 +45,6 @@ export async function sendNewsletter({
     subject: newsletter.title,
     html: emailHtml,
     replyTo: EMAIL_CONFIG.replyTo,
-  });
-
-  // Record the email send in database
-  await db.email.create({
-    data: {
-      newsletterId,
-      subscriberId,
-      recipient: to,
-      subject: newsletter.title,
-      status: result.error ? 'FAILED' : 'SENT',
-      externalId: result.data?.id,
-      sentAt: result.error ? null : new Date(),
-      error: result.error ? JSON.stringify(result.error) : null,
-    },
   });
 
   if (result.error) {
@@ -124,53 +107,14 @@ export async function sendNewsletterBatch({
 
 /**
  * Send newsletter to all subscribers of a product
+ * Note: This requires fetching subscribers from Firestore
  */
 export async function sendToProduct(newsletterId: string) {
-  const newsletter = await db.newsletter.findUnique({
-    where: { id: newsletterId },
-    include: {
-      product: {
-        include: {
-          subscribers: {
-            where: {
-              status: 'ACTIVE',
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!newsletter) {
-    throw new Error('Newsletter not found');
-  }
-
-  if (!newsletter.product) {
-    throw new Error('Newsletter is not associated with a product');
-  }
-
-  const recipients = newsletter.product.subscribers.map((subscriber) => ({
-    email: subscriber.email,
-    subscriberId: subscriber.id,
-  }));
-
-  if (recipients.length === 0) {
-    throw new Error('No active subscribers found');
-  }
-
-  const result = await sendNewsletterBatch({
-    newsletterId,
-    recipients,
-  });
-
-  // Update newsletter status
-  await db.newsletter.update({
-    where: { id: newsletterId },
-    data: {
-      status: 'SENT',
-      sentAt: new Date(),
-    },
-  });
-
-  return result;
+  // TODO: Implement with Firebase
+  return {
+    total: 0,
+    successful: 0,
+    failed: 0,
+    message: 'Email sending to product subscribers not yet implemented',
+  };
 }

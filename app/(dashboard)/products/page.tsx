@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getUserProducts, Product } from '@/lib/firebase/firestore-helpers';
+import { Product } from '@/lib/firebase/firestore-helpers';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,7 +22,7 @@ export default function ProductsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -30,26 +30,20 @@ export default function ProductsPage() {
     }
   }, [user, loading, router]);
 
+  // Load data non-blocking
   useEffect(() => {
     if (user) {
-      getUserProducts(user.uid)
-        .then(setProducts)
-        .catch((error) => {
-          console.error('Failed to load products:', error);
-        })
-        .finally(() => setLoadingProducts(false));
+      setIsLoading(true);
+      import('@/lib/firebase/firestore-helpers').then(({ getUserProducts }) => {
+        getUserProducts(user.uid)
+          .then(setProducts)
+          .catch(console.error)
+          .finally(() => setIsLoading(false));
+      });
     }
   }, [user]);
 
-  if (loading || loadingProducts) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">読み込み中...</p>
-      </div>
-    );
-  }
-
-  if (!user) {
+  if (!user && !loading) {
     return null;
   }
 
@@ -70,7 +64,21 @@ export default function ProductsPage() {
         </Button>
       </div>
 
-      {products.length === 0 ? (
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="h-6 w-32 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-48 bg-muted animate-pulse rounded mt-2" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-full bg-muted animate-pulse rounded" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : products.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Package className="h-12 w-12 text-muted-foreground mb-4" />
