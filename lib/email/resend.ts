@@ -11,5 +11,7 @@ export const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const EMAIL_CONFIG = {
   from: process.env.EMAIL_FROM || 'LetterOS <noreply@letteros.com>',
-  replyTo: process.env.EMAIL_REPLY_TO,
+  replyTo: process.env.EMAIL_REPLY_TO && process.env.EMAIL_REPLY_TO.trim() !== '' 
+    ? process.env.EMAIL_REPLY_TO 
+    : undefined,
 } as const;
