@@ -35,17 +35,22 @@ export async function signUp(email: string, password: string, displayName: strin
   // Update profile
   await updateProfile(user, { displayName });
 
-  // Create user document in Firestore
-  const userProfile: UserProfile = {
-    uid: user.uid,
-    email: user.email!,
-    displayName,
-    photoURL: null,
-    createdAt: serverTimestamp(),
-    role: 'USER',
-  };
+  // Create user document in Firestore (non-blocking)
+  try {
+    const userProfile: UserProfile = {
+      uid: user.uid,
+      email: user.email!,
+      displayName,
+      photoURL: null,
+      createdAt: serverTimestamp(),
+      role: 'USER',
+    };
 
-  await setDoc(doc(db, 'users', user.uid), userProfile);
+    await setDoc(doc(db, 'users', user.uid), userProfile);
+  } catch (error) {
+    // Firestore error is non-blocking - user is already authenticated
+    console.error('Failed to create user profile in Firestore:', error);
+  }
 
   return user;
 }
@@ -65,32 +70,38 @@ export async function signInWithGoogle() {
   const result = await signInWithPopup(auth, googleProvider);
   const user = result.user;
 
-  // Check if user document exists in Firestore
-  const userDoc = await getDoc(doc(db, 'users', user.uid));
-  
-  if (!userDoc.exists()) {
-    // Create user document if it doesn't exist
-    const userProfile: UserProfile = {
-      uid: user.uid,
-      email: user.email!,
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      createdAt: serverTimestamp(),
-      role: 'USER',
-    };
-
-    await setDoc(doc(db, 'users', user.uid), userProfile);
-  } else {
-    // Update existing user document with latest info from Google
-    await setDoc(
-      doc(db, 'users', user.uid),
-      {
+  // Try to update Firestore, but don't block if it fails
+  try {
+    // Check if user document exists in Firestore
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    
+    if (!userDoc.exists()) {
+      // Create user document if it doesn't exist
+      const userProfile: UserProfile = {
+        uid: user.uid,
+        email: user.email!,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        email: user.email!,
-      },
-      { merge: true }
-    );
+        createdAt: serverTimestamp(),
+        role: 'USER',
+      };
+
+      await setDoc(doc(db, 'users', user.uid), userProfile);
+    } else {
+      // Update existing user document with latest info from Google
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          email: user.email!,
+        },
+        { merge: true }
+      );
+    }
+  } catch (error) {
+    // Firestore error is non-blocking - user is already authenticated via Google
+    console.error('Failed to sync user profile with Firestore:', error);
   }
 
   return user;

@@ -62,13 +62,16 @@ export function SignupForm() {
       if (error instanceof FirebaseError) {
         switch (error.code) {
           case 'auth/email-already-in-use':
-            setError('このメールアドレスは既に使用されています');
+            setError('このメールアドレスは既に登録されています。ログインページからログインしてください。');
             break;
           case 'auth/weak-password':
-            setError('パスワードが弱すぎます');
+            setError('パスワードが弱すぎます。6文字以上で設定してください。');
+            break;
+          case 'auth/invalid-email':
+            setError('無効なメールアドレスです。');
             break;
           default:
-            setError('アカウント作成中にエラーが発生しました');
+            setError(`アカウント作成中にエラーが発生しました: ${error.code}`);
         }
       } else {
         setError('アカウント作成中にエラーが発生しました');
