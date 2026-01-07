@@ -57,6 +57,11 @@ export default function ProductEditPage() {
     const [targetPain, setTargetPain] = useState('');
     const [currentState, setCurrentState] = useState('');
     const [idealFuture, setIdealFuture] = useState('');
+    // メルマガ用フィールド
+    const [lpUrl, setLpUrl] = useState('');
+    const [urlType, setUrlType] = useState<'lp' | 'application' | 'purchase' | 'line' | 'other'>('lp');
+    const [price, setPrice] = useState('');
+    const [priceNote, setPriceNote] = useState('');
 
     useEffect(() => {
         if (!loading && !user) {
@@ -110,6 +115,11 @@ export default function ProductEditPage() {
         setTargetPain(p.launchContent?.targetPain || '');
         setCurrentState(p.launchContent?.currentState || '');
         setIdealFuture(p.launchContent?.idealFuture || '');
+        // メルマガ用フィールド
+        setLpUrl(p.launchContent?.lpUrl || '');
+        setUrlType(p.launchContent?.urlType || 'lp');
+        setPrice(p.launchContent?.price || '');
+        setPriceNote(p.launchContent?.priceNote || '');
     };
 
     const handleSave = async () => {
@@ -130,6 +140,11 @@ export default function ProductEditPage() {
                 targetPain,
                 currentState,
                 idealFuture,
+                // メルマガ用フィールド
+                lpUrl,
+                urlType,
+                price,
+                priceNote,
             },
         };
 
@@ -338,6 +353,64 @@ export default function ProductEditPage() {
                             onChange={(e) => setIdealFuture(e.target.value)}
                             placeholder="顧客が到達したい理想の状態"
                         />
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Newsletter Info */}
+            <Card className="border-blue-200 dark:border-blue-800">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        📧 メルマガ用情報
+                    </CardTitle>
+                    <CardDescription>メルマガのCTA（行動喚起）で使用される情報</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="lpUrl">LP/申込ページURL</Label>
+                        <Input
+                            id="lpUrl"
+                            value={lpUrl}
+                            onChange={(e) => setLpUrl(e.target.value)}
+                            placeholder="https://example.com/lp"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="urlType">URLの種類</Label>
+                        <Select value={urlType} onValueChange={(v) => setUrlType(v as any)}>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="lp">ランディングページ</SelectItem>
+                                <SelectItem value="application">申込フォーム</SelectItem>
+                                <SelectItem value="purchase">購入ページ</SelectItem>
+                                <SelectItem value="line">LINE登録</SelectItem>
+                                <SelectItem value="other">その他</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="price">価格</Label>
+                            <Input
+                                id="price"
+                                value={price}
+                                onChange={(e) => setPrice(e.target.value)}
+                                placeholder="例: 29,800円"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="priceNote">価格の補足</Label>
+                            <Input
+                                id="priceNote"
+                                value={priceNote}
+                                onChange={(e) => setPriceNote(e.target.value)}
+                                placeholder="例: 早期割引あり"
+                            />
+                        </div>
                     </div>
                 </CardContent>
             </Card>

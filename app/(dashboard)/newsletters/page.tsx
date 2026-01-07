@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Plus, Mail, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Mail, Clock, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
 const statusConfig = {
@@ -26,78 +26,106 @@ const statusConfig = {
   FAILED: { label: '失敗', icon: XCircle, color: 'text-red-600' },
 };
 
+// Skeleton component for loading state
+const NewsletterSkeleton = () => (
+  <div className="space-y-8">
+    <div className="flex items-center justify-between">
+      <div>
+        <h1 className="text-3xl font-bold">メルマガ</h1>
+        <p className="text-muted-foreground mt-2">
+          作成・配信したメルマガを管理
+        </p>
+      </div>
+      <Button disabled>
+        <Plus className="mr-2 h-4 w-4" />
+        新規作成
+      </Button>
+    </div>
+    <div className="grid gap-4">
+      {[...Array(3)].map((_, i) => (
+        <Card key={i}>
+          <CardHeader>
+            <div className="h-6 w-48 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-32 bg-muted animate-pulse rounded mt-2" />
+          </CardHeader>
+          <CardContent>
+            <div className="h-4 w-64 bg-muted animate-pulse rounded" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  </div>
+);
+
 export default function NewslettersPage() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [newsletters, setNewsletters] = useState<Newsletter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/login');
     }
-  }, [user, loading, router]);
+  }, [user, authLoading, router]);
 
   // Load data non-blocking - localStorage first for instant display
   useEffect(() => {
     if (user) {
+      let localDataLoaded = false;
+
       // Step 1: Load from localStorage immediately (instant)
       try {
         const localNewsletters = JSON.parse(localStorage.getItem('letteros_newsletters') || '[]');
         const localUserNewsletters = localNewsletters.filter((n: Newsletter) => n.userId === user.uid);
-        if (localUserNewsletters.length > 0) {
-          setNewsletters(localUserNewsletters);
-          setIsLoading(false); // Show data immediately
-        }
+        setNewsletters(localUserNewsletters);
+        localDataLoaded = true;
+        setIsLoading(false);
+        setDataLoaded(true);
       } catch {
-        // Ignore localStorage errors
+        // Continue to Firestore
       }
 
-      // Step 2: Load from Firestore in background and merge
+      // Step 2: Load from Firestore with timeout
+      const timeoutId = setTimeout(() => {
+        // If Firestore takes too long, just show what we have
+        if (!localDataLoaded) {
+          setIsLoading(false);
+          setDataLoaded(true);
+        }
+      }, 3000); // 3 second timeout
+
       import('@/lib/firebase/firestore-helpers').then(({ getUserNewsletters }) => {
         getUserNewsletters(user.uid)
           .then((fetchedNewsletters) => {
+            clearTimeout(timeoutId);
             setNewsletters(fetchedNewsletters);
             setIsLoading(false);
+            setDataLoaded(true);
             // Update localStorage
             localStorage.setItem('letteros_newsletters', JSON.stringify(fetchedNewsletters));
           })
-          .catch(console.error);
+          .catch((error) => {
+            console.error('Failed to load newsletters:', error);
+            clearTimeout(timeoutId);
+            setIsLoading(false);
+            setDataLoaded(true);
+          });
       });
+
+      return () => clearTimeout(timeoutId);
     }
   }, [user]);
 
-  if (!user && !loading) {
-    // Show skeleton while redirecting instead of white screen
-    return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">メルマガ</h1>
-            <p className="text-muted-foreground mt-2">
-              作成・配信したメルマガを管理
-            </p>
-          </div>
-          <Button disabled>
-            <Plus className="mr-2 h-4 w-4" />
-            新規作成
-          </Button>
-        </div>
-        <div className="grid gap-4">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <div className="h-6 w-48 bg-muted animate-pulse rounded" />
-                <div className="h-4 w-32 bg-muted animate-pulse rounded mt-2" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-4 w-64 bg-muted animate-pulse rounded" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
+  // Show skeleton during auth loading or initial data loading
+  if (authLoading || (user && isLoading && !dataLoaded)) {
+    return <NewsletterSkeleton />;
+  }
+
+  // Redirect case - show skeleton while redirecting
+  if (!user) {
+    return <NewsletterSkeleton />;
   }
 
   return (
@@ -117,38 +145,81 @@ export default function NewslettersPage() {
         </Button>
       </div>
 
-      {isLoading ? (
-        <div className="grid gap-4">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <div className="h-6 w-48 bg-muted animate-pulse rounded" />
-                <div className="h-4 w-32 bg-muted animate-pulse rounded mt-2" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-4 w-64 bg-muted animate-pulse rounded" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : newsletters.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Mail className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
-              メルマガがありません
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              最初のメルマガを作成しましょう
-            </p>
-            <Button asChild>
-              <Link href="/newsletters/new">
-                <Plus className="mr-2 h-4 w-4" />
-                新規作成
+      {newsletters.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          {/* Decorative wave icon */}
+          <div className="relative mb-8">
+            <svg
+              width="120"
+              height="120"
+              viewBox="0 0 120 120"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="text-slate-300 dark:text-slate-600"
+            >
+              {/* Wave lines */}
+              <path
+                d="M20 100 Q40 80, 60 90 T100 70"
+                stroke="currentColor"
+                strokeWidth="4"
+                strokeLinecap="round"
+                fill="none"
+              />
+              <path
+                d="M15 80 Q35 60, 55 70 T95 50"
+                stroke="currentColor"
+                strokeWidth="4"
+                strokeLinecap="round"
+                fill="none"
+              />
+              <path
+                d="M10 60 Q30 40, 50 50 T90 30"
+                stroke="currentColor"
+                strokeWidth="4"
+                strokeLinecap="round"
+                fill="none"
+              />
+              <path
+                d="M25 40 Q45 20, 65 30 T105 15"
+                stroke="currentColor"
+                strokeWidth="4"
+                strokeLinecap="round"
+                fill="none"
+              />
+              {/* Small decorative dots */}
+              <circle cx="105" cy="50" r="3" fill="currentColor" />
+              <circle cx="110" cy="30" r="2" fill="currentColor" />
+            </svg>
+          </div>
+
+          <h3 className="text-2xl font-bold mb-3 text-slate-800 dark:text-slate-200">
+            メルマガを作成しましょう
+          </h3>
+          <p className="text-muted-foreground text-center max-w-md mb-8">
+            AIと対話しながら、ターゲットに刺さる<br />
+            高品質なメルマガを簡単に作成できます
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button asChild size="lg" className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white">
+              <Link href="/newsletters/ai-create">
+                <Sparkles className="mr-2 h-5 w-5" />
+                AIで作成
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/newsletters/new">
+                <Plus className="mr-2 h-5 w-5" />
+                手動で作成
+              </Link>
+            </Button>
+          </div>
+
+          <p className="text-xs text-muted-foreground mt-6">
+            AIで作成すると、壁打ちで経験談を深掘りして<br />
+            読者に響くメルマガを自動生成できます
+          </p>
+        </div>
       ) : (
         <div className="grid gap-4">
           {newsletters.map((newsletter) => {

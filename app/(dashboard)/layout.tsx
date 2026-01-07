@@ -4,6 +4,7 @@
 import { AuthProvider } from '@/components/providers/auth-provider';
 import { DashboardNav } from '@/components/layout/dashboard-nav';
 import { UserNav } from '@/components/layout/user-nav';
+import Image from 'next/image';
 
 export default function DashboardLayout({
   children,
@@ -17,6 +18,14 @@ export default function DashboardLayout({
         <aside className="w-64 border-r bg-card">
           <div className="flex h-full flex-col gap-4 p-4">
             <div className="flex items-center gap-2 px-2 py-4">
+              <div className="relative h-8 w-8">
+                <Image
+                  src="/logo.png"
+                  alt="LetterOS Logo"
+                  fill
+                  className="object-contain"
+                />
+              </div>
               <h1 className="text-xl font-bold">LetterOS</h1>
             </div>
             <DashboardNav />

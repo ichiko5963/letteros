@@ -38,6 +38,11 @@ interface LaunchContentData {
         targetPain: string;
         currentState: string;
         idealFuture: string;
+        lpUrl?: string;
+        urlType?: 'lp' | 'application' | 'purchase' | 'line' | 'other';
+        price?: string;
+        priceNote?: string;
+        offerDeadline?: string;
         generatedBy: 'ai';
         aiAnswers: {
             step1: string;
@@ -70,6 +75,11 @@ export default function AIProductPage() {
     const [questions, setQuestions] = useState<AIQuestion[]>([]);
     const [answers, setAnswers] = useState<string[]>([]);
     const [generatedContent, setGeneratedContent] = useState<LaunchContentData | null>(null);
+    // Additional fields for newsletter usage
+    const [lpUrl, setLpUrl] = useState('');
+    const [urlType, setUrlType] = useState<'lp' | 'application' | 'purchase' | 'line' | 'other'>('lp');
+    const [price, setPrice] = useState('');
+    const [priceNote, setPriceNote] = useState('');
 
     useEffect(() => {
         if (!loading && !user) {
@@ -200,6 +210,11 @@ export default function AIProductPage() {
                 targetPain: generatedContent.launchContent?.targetPain || '',
                 currentState: generatedContent.launchContent?.currentState || '',
                 idealFuture: generatedContent.launchContent?.idealFuture || '',
+                // メルマガ用の追加フィールド
+                lpUrl: lpUrl || '',
+                urlType: urlType,
+                price: price || '',
+                priceNote: priceNote || '',
                 generatedBy: 'ai' as const,
                 aiAnswers: {
                     step1: answers[0] || '',
@@ -458,6 +473,65 @@ export default function AIProductPage() {
                                     <div>
                                         <span className="text-xs text-muted-foreground">理想の未来</span>
                                         <p className="text-sm">{generatedContent.launchContent.idealFuture}</p>
+                                    </div>
+                                </div>
+
+                                {/* メルマガ用の追加情報 */}
+                                <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg space-y-4">
+                                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                                        📧 メルマガ用情報（任意）
+                                    </h4>
+                                    <p className="text-xs text-muted-foreground">
+                                        メルマガのCTA（行動喚起）で使用される情報です。後から編集も可能です。
+                                    </p>
+
+                                    <div className="grid gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="lpUrl">LP/申込ページURL</Label>
+                                            <Input
+                                                id="lpUrl"
+                                                placeholder="https://example.com/lp"
+                                                value={lpUrl}
+                                                onChange={(e) => setLpUrl(e.target.value)}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="urlType">URLの種類</Label>
+                                            <select
+                                                id="urlType"
+                                                value={urlType}
+                                                onChange={(e) => setUrlType(e.target.value as any)}
+                                                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                                            >
+                                                <option value="lp">ランディングページ</option>
+                                                <option value="application">申込フォーム</option>
+                                                <option value="purchase">購入ページ</option>
+                                                <option value="line">LINE登録</option>
+                                                <option value="other">その他</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="price">価格</Label>
+                                                <Input
+                                                    id="price"
+                                                    placeholder="例: 29,800円"
+                                                    value={price}
+                                                    onChange={(e) => setPrice(e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="priceNote">価格の補足</Label>
+                                                <Input
+                                                    id="priceNote"
+                                                    placeholder="例: 早期割引あり"
+                                                    value={priceNote}
+                                                    onChange={(e) => setPriceNote(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

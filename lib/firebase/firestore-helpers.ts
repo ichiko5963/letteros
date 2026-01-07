@@ -75,6 +75,12 @@ export interface Product {
     usp?: string;               // USP
     belief?: string;            // Belief
     claim?: string;             // Claim
+    // メルマガで使用する情報
+    lpUrl?: string;             // LP/申込ページのURL
+    urlType?: 'lp' | 'application' | 'purchase' | 'line' | 'other';  // URLの種類
+    price?: string;             // 価格（例: "29,800円", "無料", "月額9,800円"）
+    priceNote?: string;         // 価格の補足（例: "早期割引あり", "3日間限定"）
+    offerDeadline?: string;     // オファーの期限
     generatedBy?: 'manual' | 'ai';
     aiAnswers?: {
       step1?: string;

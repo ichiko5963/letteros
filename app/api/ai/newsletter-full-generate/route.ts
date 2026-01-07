@@ -38,138 +38,101 @@ const NEWSLETTER_GENERATION_PROMPT = (
     newsletterNumber: number,
     sequencePatternGuide: string
 ) => `
-あなたは高品質メルマガ作成の専門家です。以下のルールと情報に基づいて、${request.newsletterCount}通シーケンスの${newsletterNumber}通目のメルマガを作成してください。
+あなたは高品質メルマガ作成の専門家です。${request.newsletterCount}通シーケンスの${newsletterNumber}通目のメルマガを作成してください。
 
 ================================================================================
-【最重要】架空でもリアルな具体的情景描写を作成すること
+【絶対禁止事項】
 ================================================================================
 
-以下のような具体的な情景描写がメルマガの核となります。ユーザーから収集した情報を元に、
-**あなたが想像力を駆使して、架空でもリアルに感じる具体的なシーンを創作してください。**
-
-【良い例1】
-「土曜日の昼下がり、ららぽーとのフードコート。妻と子どもと軽食をとっている。
-子どもが「見て見て！このソースすごくない？」と興奮気味に話しかけてくる。
-「うん、そうだね」返事はする。でも心はここにない。
-隣のテーブルから聞こえる若い母親たちの笑い声。BGMのJ-POP。食器がぶつかる音。
-普段なら心地よい土曜日のざわめきが、今日は遠い世界の出来事のように感じる。」
-
-【良い例2】
-「深夜2時、自宅の書斎。画面の光が目を刺す。
-キーボードを叩く音だけが静寂を破る。
-首の後ろがじわじわと熱くなる。誰かに見られているような感覚。
-振り返っても誰もいない。見ているのは心の中の自分だ。
-『なんで今やらないんだ』と責めている未来の自分が、そこにいる。」
+1. **架空の人物名は禁止** - 「友香さん」「田中さん」「Aさん」などの架空の登場人物は使わない
+2. **主語は「私」「あなた」のみ** - 発信者自身の経験として書く
+3. **ハッシュタグ見出し禁止** - 「# 問題提起」「# 転機」「# 解決策」などは使わない
+4. **JSON/コード記法禁止** - 本文内にJSONやコードブロックは入れない
 
 ================================================================================
-【絶対に守るべきルール】
+【見出しのルール】- ①②形式で読みやすく
 ================================================================================
 
-1. 【構成の原則】
-   - 必ず上記のような具体的な情景描写から始める（時間、場所、状況を明確に）
-   - 問題提起 → 共感 → 解決策（または次への期待）→ 行動喚起 の流れ
-   - 1通で1つのメッセージに集中する
-   - 最低3000文字以上（理想は3500〜5000文字）
+本文では以下のような①②形式の見出しを使ってください：
 
-2. 【経験談の盛り込み】（最重要）
-   - ユーザーから収集した情報を元に、あなたが具体的な情景を創作する
-   - **架空でも構いません。ターゲットに刺さる、リアルで具体的な物語を作成**
-   - 経験談パートは最低800〜1500文字
-   - 含めるべき要素:
-     - 具体的な状況描写（いつ、どこで、誰と、何をしていたか）
-     - 感情の動き（その時何を感じたか）
-     - 対話の再現（実際の会話）
-     - 五感の表現（見た、聞いた、感じたこと）
-     - 内面の葛藤（迷い、不安、期待など）
+【良い例】
+① あの日、私は限界だった
+② 偶然見つけた「突破口」
+③ 今、あなたに伝えたいこと
 
-3. 【具体性の原則】
-   - 具体的な数字を3つ以上必ず入れる（金額、人数、期間など）
-   - 固有名詞を使う（場所名、ツール名、人物のイニシャルなど）
-   - 時間を明確にする（曜日、時刻、季節など）
-   - 抽象的な表現は禁止（「たくさん」「少し」「多くの」は使わない）
-
-4. 【感情表現】
-   - 率直に感情を表現する
-   - 「...」「。。。」で余韻を残す
-   - 短い文で感情を強調（「でも違った。」「これが、現実です。」）
-   - 問題 → 葛藤 → 転機 → 解決の感情の流れを作る
-
-5. 【読者との対話】
-   - 問いかけを最低2回は入れる
-   - 「あなたも」「あなたにも」という二人称で語りかける
-   - 読者が「これ、私のことだ」と思える描写をする
-
-6. 【CTA（行動喚起）】
-   - メールの最後に必ず明確な次のアクションを提示
-   - 追伸（PS）で追加の価値提供とさらなる行動喚起
+【悪い例 - 絶対に使わない】
+# 問題提起
+# 転機
+# 解決策
+## 1. はじめに
 
 ================================================================================
-【${request.newsletterCount}通シーケンスの構成ガイド】
+【構成の原則】
 ================================================================================
 
-${sequencePatternGuide}
+1. **具体的な情景描写から始める**（時間、場所、状況を明確に）
+   例：「土曜日の昼下がり、ららぽーとのフードコート。妻と子どもと軽食をとっている...」
+
+2. **自分の経験として書く** - 全て一人称「私」で
+3. **読者に語りかける** - 「あなたも」「こんな経験ありませんか？」
+4. **最低3000文字以上**（理想は3500〜5000文字）
 
 ================================================================================
-【今回のメルマガの企画情報】
+【経験談の書き方】
 ================================================================================
 
-■ ローンチコンテンツ
+ユーザーが語った経験を元に、より具体的に膨らませてください：
+- いつ・どこで・何をしていたか
+- その時の感情（不安、焦り、疲労など）
+- 周りの状況（音、光、匂い、温度）
+- 心の声（「なんでこうなったんだろう...」など）
+
+================================================================================
+【ローンチコンテンツ情報】
+================================================================================
+
+■ 基本情報
 - 名前: ${request.launchContent.name}
 - 説明: ${request.launchContent.description || '未設定'}
-- ターゲット読者: ${request.launchContent.targetAudience || '未設定'}
+- ターゲット: ${request.launchContent.targetAudience || '未設定'}
 - 提供価値: ${request.launchContent.valueProposition || '未設定'}
-- コンセプト: ${request.launchContent.concept || '未設定'}
-- 顧客のPAIN: ${request.launchContent.targetPain || '未設定'}
-- 顧客の現状: ${request.launchContent.currentState || '未設定'}
-- 理想の未来: ${request.launchContent.idealFuture || '未設定'}
+- LP/申込URL: ${(request.launchContent as any).lpUrl || '未設定'}
+- 価格: ${(request.launchContent as any).price || '未設定'}
 
 ■ ${newsletterNumber}通目の企画
 ${request.newsletterPlans[newsletterNumber - 1] ? `
 - 論点: ${request.newsletterPlans[newsletterNumber - 1].mainPoint}
-- 変えたい読者の認識: ${request.newsletterPlans[newsletterNumber - 1].targetBelief}
-- 使用する経験談: ${request.newsletterPlans[newsletterNumber - 1].experienceToUse}
-- 根拠（Proof）: ${request.newsletterPlans[newsletterNumber - 1].proof}
+- 使用する経験: ${request.newsletterPlans[newsletterNumber - 1].experienceToUse}
 - CTA: ${request.newsletterPlans[newsletterNumber - 1].cta}
 ` : '企画情報なし'}
 
 ================================================================================
-【ユーザーから収集した経験談・情報（壁打ちの全内容）】
+【ユーザーから収集した経験談】
 ================================================================================
 
 ${request.collectedExperiences}
 
-【壁打ちの会話履歴】
-${request.chatHistory.map(m => `${m.role === 'user' ? '👤' : '🤖'}: ${m.content}`).join('\n\n')}
+【壁打ちの会話】
+${request.chatHistory.map(m => `${m.role === 'user' ? 'ユーザー' : 'AI'}: ${m.content}`).join('\n\n')}
 
 ================================================================================
-【出力形式】
+【${request.newsletterCount}通シーケンス - ${newsletterNumber}通目の役割】
 ================================================================================
 
-以下のJSON形式で出力してください。件名はあなたが最適なものを1つ決定してください：
+${sequencePatternGuide}
 
-{
-  "subject": "件名（50文字以内、興味を引く魅力的なもの）",
-  "body": "本文（3000文字以上、Markdown形式）",
-  "wordCount": 文字数,
-  "qualityCheck": {
-    "hasSceneDescription": true/false,
-    "experienceWordCount": 経験談部分の文字数,
-    "numberCount": 含まれる具体的数字の数,
-    "hasQuestions": true/false,
-    "hasCta": true/false,
-    "hasPs": true/false
-  }
-}
+${newsletterNumber > 1 ? `※${newsletterNumber}通目なので、前の通からの流れを意識してください` : '※1通目なので、問題提起と共感に重点を置いてください'}
+${newsletterNumber < request.newsletterCount ? '※次のメールへの期待感を残してください' : '※最終通なので、明確なオファーと行動喚起を含めてください'}
 
 ================================================================================
-【重要な注意事項】
+【出力形式】- 必ずこの形式で出力
 ================================================================================
 
-1. 収集した経験談は必ず本文に組み込んでください。省略は禁止です。
-2. 具体的な情景描写で始めてください（抽象的な導入は禁止）
-3. シーケンスの他の通との一貫性を保ってください
-4. ${newsletterNumber > 1 ? `これは${newsletterNumber}通目なので、前の通からの流れを意識してください` : 'これは1通目なので、問題提起と共感に重点を置いてください'}
-5. ${newsletterNumber < request.newsletterCount ? '次のメールへの期待感を残してください' : '最終通なので、明確なオファーと行動喚起を含めてください'}
+以下のJSON形式のみを出力してください。コードブロック(\`\`\`)で囲まないでください：
+
+{"subject": "興味を引く件名（50文字以内）", "body": "本文（3000文字以上）", "wordCount": 3500, "qualityCheck": {"hasSceneDescription": true, "experienceWordCount": 1000, "numberCount": 5, "hasQuestions": true, "hasCta": true, "hasPs": true}}
+
+※bodyの中では①②形式の見出しを使い、「# 問題提起」などのハッシュタグ見出しは使わないでください。
 `;
 
 // Sequence pattern guides based on newsletter count
@@ -270,36 +233,67 @@ export async function POST(request: NextRequest) {
             const prompt = NEWSLETTER_GENERATION_PROMPT(body, i, sequenceGuide);
 
             const result = await model.generateContent(prompt);
-            const responseText = result.response.text();
+            let responseText = result.response.text();
 
-            // Parse JSON from response
-            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                try {
-                    const parsed = JSON.parse(jsonMatch[0]);
-                    generatedNewsletters.push({
-                        number: i,
-                        subject: parsed.subject,
-                        body: parsed.body,
-                        wordCount: parsed.wordCount || parsed.body?.length || 0,
-                        qualityCheck: parsed.qualityCheck || {}
-                    });
-                } catch (parseError) {
-                    console.error(`Failed to parse newsletter ${i}:`, parseError);
-                    generatedNewsletters.push({
-                        number: i,
-                        subject: `${launchContent.name} - 第${i}通`,
-                        body: responseText,
-                        wordCount: responseText.length,
-                        qualityCheck: {}
-                    });
+            // Remove markdown code blocks if present
+            responseText = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+            // Try to parse JSON from response - find the outermost JSON object
+            let parsed: any = null;
+
+            // Try multiple parsing strategies
+            try {
+                // Strategy 1: Direct parse (if response is pure JSON)
+                parsed = JSON.parse(responseText);
+            } catch {
+                // Strategy 2: Find JSON object pattern
+                const jsonMatch = responseText.match(/\{[\s\S]*"subject"[\s\S]*"body"[\s\S]*\}/);
+                if (jsonMatch) {
+                    try {
+                        parsed = JSON.parse(jsonMatch[0]);
+                    } catch (e) {
+                        console.error(`JSON parse failed for newsletter ${i}:`, e);
+                    }
                 }
-            } else {
+            }
+
+            if (parsed && parsed.subject && parsed.body) {
+                // Clean up body - remove any remaining markdown artifacts
+                let cleanBody = parsed.body;
+                // Remove leading/trailing quotes if present
+                if (cleanBody.startsWith('"') && cleanBody.endsWith('"')) {
+                    cleanBody = cleanBody.slice(1, -1);
+                }
+                // Unescape common escape sequences
+                cleanBody = cleanBody.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+
                 generatedNewsletters.push({
                     number: i,
-                    subject: `${launchContent.name} - 第${i}通`,
-                    body: responseText,
-                    wordCount: responseText.length,
+                    subject: parsed.subject,
+                    body: cleanBody,
+                    wordCount: parsed.wordCount || cleanBody.length,
+                    qualityCheck: parsed.qualityCheck || {}
+                });
+            } else {
+                // Fallback: Try to extract subject and body manually
+                console.error(`Failed to parse newsletter ${i}, using fallback`);
+
+                // Try to find subject in response
+                const subjectMatch = responseText.match(/"subject"\s*:\s*"([^"]+)"/);
+                const subject = subjectMatch ? subjectMatch[1] : `${launchContent.name} - 第${i}通`;
+
+                // Try to find body - everything after "body": "
+                const bodyMatch = responseText.match(/"body"\s*:\s*"([\s\S]+?)(?:"\s*,\s*"wordCount|"\s*,\s*"qualityCheck|"\s*\})/);
+                let bodyContent = bodyMatch ? bodyMatch[1] : responseText;
+
+                // Clean up body
+                bodyContent = bodyContent.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+
+                generatedNewsletters.push({
+                    number: i,
+                    subject: subject,
+                    body: bodyContent,
+                    wordCount: bodyContent.length,
                     qualityCheck: {}
                 });
             }
