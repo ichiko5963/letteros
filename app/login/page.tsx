@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 export const metadata: Metadata = {
   title: 'ログイン | LetterOS',
-  description: 'LetterOSにログインして、ニュースレターを作成・配信しましょう',
+  description: 'LetterOSにログインして、メルマガを作成・配信しましょう',
 };
 
 export default function LoginPage() {
@@ -19,7 +19,7 @@ export default function LoginPage() {
             LetterOS
           </CardTitle>
           <CardDescription className="text-center">
-            AIエディタでニュースレター配信を加速
+            AIエディタでメルマガ配信を加速
           </CardDescription>
         </CardHeader>
         <CardContent>

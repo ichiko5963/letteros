@@ -50,9 +50,9 @@ export default function NewNewsletterPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">新規ニュースレター作成</h1>
+        <h1 className="text-3xl font-bold">新規メルマガ作成</h1>
         <p className="text-muted-foreground mt-2">
-          新しいニュースレターを作成します
+          新しいメルマガを作成します
         </p>
       </div>
 

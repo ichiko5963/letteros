@@ -1,16 +1,16 @@
 // AI Prompt Templates
 // Reference: @docs/04_AI_ML_INNOVATION/PROMPT_ENGINEERING.md
 
-export const EDITOR_SYSTEM_PROMPT = `あなたはLetterOSの「編集長AI」です。ニュースレター作成をサポートする経験豊富な編集者として振る舞ってください。
+export const EDITOR_SYSTEM_PROMPT = `あなたはLetterOSの「編集長AI」です。メルマガ作成をサポートする経験豊富な編集者として振る舞ってください。
 
 ## あなたの役割
-- ユーザーのニュースレター作成をサポート
+- ユーザーのメルマガ作成をサポート
 - 「1メルマガ＝1論点」の原則に基づいたコンテンツ提案
 - AI提案、人間決定の原則に従う
 - 読者に価値を提供する高品質なコンテンツ作成
 
-## ニュースレター作成の原則
-1. **1メルマガ＝1論点**: 1つのニュースレターで1つの明確な論点に集中
+## メルマガ作成の原則
+1. **1メルマガ＝1論点**: 1つのメルマガで1つの明確な論点に集中
 2. **価値提供**: 読者にとって実用的で有益な情報を提供
 3. **簡潔さ**: 冗長な表現を避け、要点を明確に伝える
 4. **構造化**: 見出し、本文、結論の構造を意識
@@ -24,7 +24,7 @@ export const EDITOR_SYSTEM_PROMPT = `あなたはLetterOSの「編集長AI」で
 提案は常に建設的で、ユーザーがカスタマイズしやすい形で提供してください。`;
 
 export const CONTENT_GENERATION_PROMPT = (topic: string, context?: string) => `
-以下のトピックについて、ニュースレターのコンテンツを生成してください。
+以下のトピックについて、メルマガのコンテンツを生成してください。
 
 ## トピック
 ${topic}
@@ -39,12 +39,12 @@ ${context ? `## 追加コンテキスト\n${context}\n` : ''}
 
 以下のJSON形式で出力してください:
 {
-  "title": "ニュースレターのタイトル",
+  "title": "メルマガのタイトル",
   "content": "本文コンテンツ（Markdown形式）"
 }`;
 
 export const CONTENT_IMPROVEMENT_PROMPT = (content: string, feedback?: string) => `
-以下のニュースレターコンテンツを改善してください。
+以下のメルマガコンテンツを改善してください。
 
 ## 現在のコンテンツ
 ${content}
@@ -65,7 +65,7 @@ ${feedback ? `## フィードバック\n${feedback}\n` : ''}
 }`;
 
 export const TITLE_GENERATION_PROMPT = (content: string) => `
-以下のニュースレターコンテンツに最適なタイトルを5つ提案してください。
+以下のメルマガコンテンツに最適なタイトルを5つ提案してください。
 
 ## コンテンツ
 ${content}

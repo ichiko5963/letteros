@@ -77,9 +77,9 @@ export default async function Home() {
             <div className="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
               <Mail className="w-6 h-6 text-slate-700 dark:text-slate-300" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">プロダクト単位で管理</h3>
+            <h3 className="text-xl font-semibold mb-2">ローンチコンテンツ単位で管理</h3>
             <p className="text-slate-600 dark:text-slate-400">
-              口調・思想・読者・目的が一貫した発信主体として、プロダクトごとに運用を構造化。
+              口調・思想・読者・目的が一貫した発信主体として、ローンチコンテンツごとに運用を構造化。
             </p>
           </div>
 

@@ -10,7 +10,7 @@ if (!process.env.GEMINI_API_KEY) {
 export const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export const AI_CONFIG = {
-  model: 'gemini-1.5-pro',
+  model: 'gemini-2.0-flash',
   temperature: 0.7,
   maxOutputTokens: 2000,
 } as const;

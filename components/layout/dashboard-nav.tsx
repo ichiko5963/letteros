@@ -12,7 +12,7 @@ import {
   Mail,
   BarChart3,
   Settings,
-  Package,
+  Rocket,
   Users,
   Sparkles,
 } from 'lucide-react';
@@ -24,7 +24,7 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    title: 'ニュースレター',
+    title: 'メルマガ',
     href: '/newsletters',
     icon: Mail,
   },
@@ -34,9 +34,9 @@ const navItems = [
     icon: Users,
   },
   {
-    title: 'プロダクト',
+    title: 'ローンチコンテンツ',
     href: '/products',
-    icon: Package,
+    icon: Rocket,
   },
   {
     title: '分析',

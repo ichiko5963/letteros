@@ -91,7 +91,7 @@ export function SendDialog({
         {!sendComplete ? (
           <>
             <DialogHeader>
-              <DialogTitle>ニュースレターを配信</DialogTitle>
+              <DialogTitle>メルマガを配信</DialogTitle>
               <DialogDescription>
                 配信前にテスト送信で内容を確認することをお勧めします
               </DialogDescription>
@@ -176,9 +176,9 @@ export function SendDialog({
                 <Card>
                   <CardContent className="pt-6">
                     <p className="text-sm text-muted-foreground text-center">
-                      プロダクトが設定されていないため、本番配信できません。
+                      ローンチコンテンツが設定されていないため、本番配信できません。
                       <br />
-                      ニュースレター編集画面でプロダクトを選択してください。
+                      メルマガ編集画面でローンチコンテンツを選択してください。
                     </p>
                   </CardContent>
                 </Card>
@@ -200,7 +200,7 @@ export function SendDialog({
             <div className="flex flex-col items-center justify-center py-8">
               <CheckCircle2 className="h-16 w-16 text-green-600 mb-4" />
               <h3 className="text-lg font-semibold mb-2">
-                ニュースレターの配信が完了しました
+                メルマガの配信が完了しました
               </h3>
               <p className="text-sm text-muted-foreground">
                 購読者へのメール送信を開始しました

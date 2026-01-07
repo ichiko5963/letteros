@@ -63,6 +63,23 @@ export interface Product {
   subscriberCount?: number;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+  // LetterOS発信定義（AIで生成される追加フィールド）
+  launchContent?: {
+    concept?: string;           // コンセプト
+    targetPain?: string;        // 顧客のPAIN
+    currentState?: string;      // 顧客の現状
+    idealFuture?: string;       // 理想の未来
+    usp?: string;               // USP
+    belief?: string;            // Belief
+    claim?: string;             // Claim
+    generatedBy?: 'manual' | 'ai';
+    aiAnswers?: {
+      step1?: string;
+      step2?: string;
+      step3?: string;
+      step4?: string;
+    };
+  };
 }
 
 export interface Subscriber {

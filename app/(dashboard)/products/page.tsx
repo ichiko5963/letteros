@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Plus, Package } from 'lucide-react';
+import { Plus, Rocket } from 'lucide-react';
 
 export default function ProductsPage() {
   const { user, loading } = useAuth();
@@ -30,14 +30,47 @@ export default function ProductsPage() {
     }
   }, [user, loading, router]);
 
-  // Load data non-blocking
+  // Load data non-blocking - localStorage first for instant display
   useEffect(() => {
     if (user) {
-      setIsLoading(true);
+      // Step 1: Load from localStorage immediately (instant)
+      try {
+        const localProducts = JSON.parse(localStorage.getItem('letteros_products') || '[]');
+        const localUserProducts = localProducts.filter((p: Product) => p.userId === user.uid);
+        if (localUserProducts.length > 0) {
+          setProducts(localUserProducts);
+          setIsLoading(false); // Show data immediately
+        }
+      } catch {
+        // Ignore localStorage errors
+      }
+
+      // Step 2: Load from Firestore in background and merge
       import('@/lib/firebase/firestore-helpers').then(({ getUserProducts }) => {
         getUserProducts(user.uid)
-          .then(setProducts)
-          .catch(console.error)
+          .then((firestoreProducts) => {
+            // Merge localStorage and Firestore products
+            try {
+              const localProducts = JSON.parse(localStorage.getItem('letteros_products') || '[]');
+              const localUserProducts = localProducts.filter((p: Product) => p.userId === user.uid);
+
+              // Combine, with Firestore products taking priority
+              const allProducts = [...firestoreProducts];
+              localUserProducts.forEach((localProd: Product) => {
+                if (!allProducts.some(p => p.id === localProd.id)) {
+                  allProducts.push(localProd);
+                }
+              });
+
+              setProducts(allProducts);
+            } catch {
+              setProducts(firestoreProducts);
+            }
+          })
+          .catch((error) => {
+            console.error('Firestore error:', error);
+            // Keep localStorage data if Firestore fails
+          })
           .finally(() => setIsLoading(false));
       });
     }
@@ -51,9 +84,9 @@ export default function ProductsPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">プロダクト</h1>
+          <h1 className="text-3xl font-bold">ローンチコンテンツ</h1>
           <p className="text-muted-foreground mt-2">
-            プロダクトとニュースレターを管理
+            発信主体とメルマガを管理
           </p>
         </div>
         <Button asChild>
@@ -81,12 +114,12 @@ export default function ProductsPage() {
       ) : products.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <Package className="h-12 w-12 text-muted-foreground mb-4" />
+            <Rocket className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">
-              プロダクトがありません
+              ローンチコンテンツがありません
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              最初のプロダクトを作成しましょう
+              最初のローンチコンテンツを作成しましょう
             </p>
             <Button asChild>
               <Link href="/products/new">

@@ -82,9 +82,9 @@ export default function EditNewsletterPage({
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">ニュースレター編集</h1>
+          <h1 className="text-3xl font-bold">メルマガ編集</h1>
           <p className="text-muted-foreground mt-2">
-            ニュースレターの内容を編集します
+            メルマガの内容を編集します
           </p>
         </div>
         <SendDialog

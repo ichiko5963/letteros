@@ -59,9 +59,9 @@ export default function NewslettersPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">ニュースレター</h1>
+          <h1 className="text-3xl font-bold">メルマガ</h1>
           <p className="text-muted-foreground mt-2">
-            作成・配信したニュースレターを管理
+            作成・配信したメルマガを管理
           </p>
         </div>
         <Button asChild>
@@ -91,10 +91,10 @@ export default function NewslettersPage() {
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Mail className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">
-              ニュースレターがありません
+              メルマガがありません
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              最初のニュースレターを作成しましょう
+              最初のメルマガを作成しましょう
             </p>
             <Button asChild>
               <Link href="/newsletters/new">

@@ -34,13 +34,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  createNewsletter, 
-  updateNewsletter, 
-  deleteNewsletter 
+import {
+  createNewsletter,
+  updateNewsletter,
+  deleteNewsletter
 } from '@/lib/firebase/firestore-helpers';
 import { useAuth } from '@/components/providers/auth-provider';
-import { Loader2, Save, Trash2 } from 'lucide-react';
+import { Loader2, Save, Trash2, Sparkles, Check } from 'lucide-react';
 
 const newsletterFormSchema = z.object({
   title: z.string().min(1, 'タイトルは必須です').max(200, 'タイトルは200文字以内で入力してください'),
@@ -50,6 +50,13 @@ const newsletterFormSchema = z.object({
 });
 
 type NewsletterFormValues = z.infer<typeof newsletterFormSchema>;
+
+interface SubjectOption {
+  id: string;
+  text: string;
+  approach: string;
+  reason: string;
+}
 
 interface NewsletterFormProps {
   newsletter?: {
@@ -67,6 +74,9 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGeneratingSubjects, setIsGeneratingSubjects] = useState(false);
+  const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([]);
+  const [showSubjectOptions, setShowSubjectOptions] = useState(false);
 
   const form = useForm<NewsletterFormValues>({
     resolver: zodResolver(newsletterFormSchema),
@@ -78,14 +88,49 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
     },
   });
 
+  async function generateSubjects() {
+    const content = form.getValues('content');
+    if (!content || content.length < 50) {
+      alert('件名を生成するには、本文を50文字以上入力してください');
+      return;
+    }
+
+    setIsGeneratingSubjects(true);
+    setShowSubjectOptions(true);
+
+    try {
+      const response = await fetch('/api/newsletters/generate-subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate subjects');
+
+      const data = await response.json();
+      setSubjectOptions(data.subjects);
+    } catch (error) {
+      console.error('Failed to generate subjects:', error);
+      alert('件名の生成に失敗しました');
+      setShowSubjectOptions(false);
+    } finally {
+      setIsGeneratingSubjects(false);
+    }
+  }
+
+  function selectSubject(text: string) {
+    form.setValue('title', text);
+    setShowSubjectOptions(false);
+  }
+
   async function onSubmit(data: NewsletterFormValues) {
     if (!user) return;
-    
+
     setIsLoading(true);
 
     try {
       const selectedProduct = products.find(p => p.id === data.productId);
-      
+
       if (newsletter) {
         await updateNewsletter(newsletter.id, {
           title: data.title,
@@ -140,7 +185,7 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
           <CardHeader>
             <CardTitle>基本情報</CardTitle>
             <CardDescription>
-              ニュースレターのタイトルとコンテンツを入力してください
+              メルマガのタイトルとコンテンツを入力してください
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -149,13 +194,85 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>タイトル</FormLabel>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>件名（タイトル）</FormLabel>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={generateSubjects}
+                      disabled={isGeneratingSubjects}
+                      className="text-violet-600 border-violet-300 hover:bg-violet-50"
+                    >
+                      {isGeneratingSubjects ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          生成中...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-3 w-3" />
+                          AIで件名を生成
+                        </>
+                      )}
+                    </Button>
+                  </div>
                   <FormControl>
                     <Input
-                      placeholder="ニュースレターのタイトル"
+                      placeholder="メルマガの件名"
                       {...field}
                     />
                   </FormControl>
+
+                  {/* AI Subject Options */}
+                  {showSubjectOptions && (
+                    <div className="mt-4 space-y-2">
+                      {isGeneratingSubjects ? (
+                        <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-900 text-center">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto text-violet-500" />
+                          <p className="text-sm text-muted-foreground mt-2">AIが件名を考えています...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-violet-600">AIが提案する件名（クリックで選択）</p>
+                          <div className="space-y-2">
+                            {subjectOptions.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => selectSubject(option.text)}
+                                className="w-full p-3 text-left border rounded-lg hover:bg-violet-50 hover:border-violet-300 dark:hover:bg-violet-950 transition-colors group"
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-900 flex items-center justify-center text-violet-600 dark:text-violet-300 text-xs font-medium mt-0.5">
+                                    {option.id.toUpperCase()}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="font-medium text-sm">{option.text}</div>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded mr-2">{option.approach}</span>
+                                      {option.reason}
+                                    </div>
+                                  </div>
+                                  <Check className="h-4 w-4 text-violet-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowSubjectOptions(false)}
+                            className="text-muted-foreground"
+                          >
+                            閉じる
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   <FormMessage />
                 </FormItem>
               )}
@@ -169,7 +286,7 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
                   <FormLabel>コンテンツ</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="ニュースレターの本文を入力してください"
+                      placeholder="メルマガの本文を入力してください"
                       className="min-h-[400px] font-mono"
                       {...field}
                     />
@@ -188,7 +305,7 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
           <CardHeader>
             <CardTitle>配信設定</CardTitle>
             <CardDescription>
-              プロダクトとステータスを設定してください
+              ローンチコンテンツとステータスを設定してください
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -197,11 +314,11 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
               name="productId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>プロダクト（任意）</FormLabel>
+                  <FormLabel>ローンチコンテンツ（任意）</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="プロダクトを選択" />
+                        <SelectValue placeholder="ローンチコンテンツを選択" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -213,7 +330,7 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    このニュースレターを紐付けるプロダクトを選択
+                    このメルマガを紐付けるローンチコンテンツを選択
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -296,3 +413,4 @@ export function NewsletterForm({ newsletter, products }: NewsletterFormProps) {
     </Form>
   );
 }
+

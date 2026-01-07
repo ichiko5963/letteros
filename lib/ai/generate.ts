@@ -110,7 +110,7 @@ export async function chatWithEditor(
       },
       {
         role: 'model',
-        parts: [{ text: '了解しました。LetterOSの編集長AIとして、あなたのニュースレター作成をサポートします。' }],
+        parts: [{ text: '了解しました。LetterOSの編集長AIとして、あなたのメルマガ作成をサポートします。' }],
       },
       ...conversationHistory.map(msg => ({
         role: msg.role,

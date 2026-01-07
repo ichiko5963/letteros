@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 export const metadata: Metadata = {
   title: 'アカウント作成 | LetterOS',
-  description: 'LetterOSのアカウントを作成して、ニュースレターを作成・配信しましょう',
+  description: 'LetterOSのアカウントを作成して、メルマガを作成・配信しましょう',
 };
 
 export default function SignupPage() {
