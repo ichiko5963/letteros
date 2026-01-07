@@ -31,6 +31,9 @@ export interface Newsletter {
   sentAt?: Timestamp | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+  // Sequence tracking
+  sequenceNumber?: number;  // What number in the sequence (1, 2, 3, etc.)
+  totalInSequence?: number; // Total count in sequence (e.g., 3 for a 3-mail sequence)
   // LetterOS hypothesis tracking
   hypothesis?: {
     plan?: {

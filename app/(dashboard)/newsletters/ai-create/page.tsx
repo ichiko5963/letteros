@@ -1,5 +1,5 @@
 // AI Newsletter Creation Wizard (LetterOS Core Feature)
-// Based on: @docs/request.md, @docs/marketing.md
+// Based on: @docs/newsletter-rules.md, @docs/newsletter-sequence-patterns.md
 
 'use client';
 
@@ -23,24 +23,25 @@ import {
   ArrowLeft,
   Check,
   Target,
-  Lightbulb,
   FileText,
   Send,
   Loader2,
   MessageSquare,
   Hash,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { getUserProducts, Product, createNewsletter } from '@/lib/firebase/firestore-helpers';
 import { cn } from '@/lib/utils';
 
-// Steps in the wizard  
+// Steps in the wizard - simplified flow
 const STEPS = [
   { id: 'product', title: 'ローンチコンテンツ', icon: Target, description: '発信主体を選択' },
   { id: 'count', title: '通数提案', icon: Hash, description: 'AIが最適な通数を提案' },
-  { id: 'plan', title: 'AI壁打ち', icon: MessageSquare, description: '対話で企画を詰める' },
-  { id: 'generate', title: 'AI生成', icon: Sparkles, description: '複数案を生成' },
-  { id: 'select', title: '選択', icon: Check, description: '最適な案を選ぶ' },
-  { id: 'edit', title: '最終編集', icon: FileText, description: '仕上げと確認' },
+  { id: 'plan', title: 'AI壁打ち', icon: MessageSquare, description: '経験談を深掘り' },
+  { id: 'confirm', title: '企画確認', icon: Check, description: '壁打ち内容を確認' },
+  { id: 'generate', title: 'AI生成', icon: Sparkles, description: 'メルマガを一括生成' },
+  { id: 'edit', title: '最終編集', icon: FileText, description: '仕上げと保存' },
 ];
 
 // Types
@@ -66,28 +67,24 @@ interface NewsletterPlan {
   subject: string;
   mainPoint: string;
   targetBelief: string;
+  experienceToUse: string;
   proof: string;
   cta: string;
 }
 
-interface GeneratedVariant {
-  id: string;
-  content: string;
-  reasoning: string;
-}
-
-interface GeneratedContent {
-  subjects: GeneratedVariant[];
-  introductions: GeneratedVariant[];
-  structures: GeneratedVariant[];
-  conclusions: GeneratedVariant[];
-}
-
-interface SelectedContent {
-  subject: GeneratedVariant | null;
-  introduction: GeneratedVariant | null;
-  structure: GeneratedVariant | null;
-  conclusion: GeneratedVariant | null;
+interface GeneratedNewsletter {
+  number: number;
+  subject: string;
+  body: string;
+  wordCount: number;
+  qualityCheck: {
+    hasSceneDescription?: boolean;
+    experienceWordCount?: number;
+    numberCount?: number;
+    hasQuestions?: boolean;
+    hasCta?: boolean;
+    hasPs?: boolean;
+  };
 }
 
 export default function AICreateNewsletterPage() {
@@ -111,18 +108,15 @@ export default function AICreateNewsletterPage() {
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [newsletterPlans, setNewsletterPlans] = useState<NewsletterPlan[]>([]);
+  const [collectedExperiences, setCollectedExperiences] = useState<string>('');
 
-  // Generation state
-  const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null);
-  const [selectedContent, setSelectedContent] = useState<SelectedContent>({
-    subject: null,
-    introduction: null,
-    structure: null,
-    conclusion: null,
-  });
-  const [finalContent, setFinalContent] = useState({ title: '', content: '' });
+  // Generation state - NEW: stores all generated newsletters
+  const [generatedNewsletters, setGeneratedNewsletters] = useState<GeneratedNewsletter[]>([]);
+  const [editableNewsletters, setEditableNewsletters] = useState<GeneratedNewsletter[]>([]);
+  const [expandedNewsletter, setExpandedNewsletter] = useState<number>(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [savingIndex, setSavingIndex] = useState<number | null>(null);
 
   // Auth check
   useEffect(() => {
@@ -302,11 +296,17 @@ export default function AICreateNewsletterPage() {
 
       if (data.type === 'question') {
         setChatMessages(prev => [...prev, { role: 'assistant', content: data.question }]);
+        // Store collected info so far if available
+        if (data.collectedSoFar) {
+          setCollectedExperiences(data.collectedSoFar);
+        }
       } else if (data.type === 'proposal') {
         setNewsletterPlans(data.newsletters);
+        // Store the complete collected experiences
+        setCollectedExperiences(data.collectedExperiences || '');
         setChatMessages(prev => [...prev, {
           role: 'assistant',
-          content: `🎉 企画が完成しました！${data.newsletters.length}通のメルマガシリーズを作成しました。「次へ」をクリックして内容を生成しましょう。`
+          content: `🎉 経験談の収集が完了しました！${data.newsletters.length}通のメルマガシリーズを企画しました。「次へ」をクリックして確認しましょう。`
         }]);
       } else {
         setChatMessages(prev => [...prev, { role: 'assistant', content: data.question || 'もう少し詳しく教えてください。' }]);
@@ -355,9 +355,11 @@ export default function AICreateNewsletterPage() {
 
       if (data.type === 'proposal') {
         setNewsletterPlans(data.newsletters);
+        // Store the complete collected experiences
+        setCollectedExperiences(data.collectedExperiences || '');
         setChatMessages(prev => [...prev, {
           role: 'assistant',
-          content: `✅ 強制的に企画を作成しました！${data.newsletters.length}通のメルマガシリーズを提案します。`
+          content: `✅ 企画を作成しました！${data.newsletters.length}通のメルマガシリーズを提案します。「次へ」をクリックして確認しましょう。`
         }]);
       }
     } catch (error) {
@@ -368,32 +370,38 @@ export default function AICreateNewsletterPage() {
     }
   };
 
-  // Generate content with AI
+  // Generate all newsletters with AI (full content)
   const handleGenerate = async () => {
     if (!selectedProduct || newsletterPlans.length === 0) return;
 
     setIsGenerating(true);
     try {
-      const plan = newsletterPlans[0]; // For now, use first newsletter plan
+      const launchContent = {
+        name: selectedProduct.name,
+        description: selectedProduct.description,
+        targetAudience: selectedProduct.targetAudience,
+        valueProposition: selectedProduct.valueProposition,
+        concept: selectedProduct.launchContent?.concept,
+        targetPain: selectedProduct.launchContent?.targetPain,
+        currentState: selectedProduct.launchContent?.currentState,
+        idealFuture: selectedProduct.launchContent?.idealFuture,
+      };
 
-      const response = await fetch('/api/ai/newsletter-generate', {
+      // Build collected experiences from chat history if not already set
+      const experiences = collectedExperiences || chatMessages
+        .filter(m => m.role === 'user')
+        .map(m => m.content)
+        .join('\n\n');
+
+      const response = await fetch('/api/ai/newsletter-full-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: {
-            name: selectedProduct.name,
-            description: selectedProduct.description,
-            targetAudience: selectedProduct.targetAudience,
-            tone: selectedProduct.tone,
-          },
-          plan: {
-            targetSegment: selectedProduct.targetAudience || '',
-            currentBelief: plan.targetBelief,
-            desiredBelief: plan.mainPoint,
-            mainPoint: plan.mainPoint,
-            proof: plan.proof,
-            cta: plan.cta,
-          },
+          launchContent,
+          newsletterCount: selectedCount,
+          newsletterPlans,
+          collectedExperiences: experiences,
+          chatHistory: chatMessages,
         }),
       });
 
@@ -404,51 +412,90 @@ export default function AICreateNewsletterPage() {
       }
 
       const data = await response.json();
-      setGeneratedContent(data);
-      setCurrentStep(4); // Move to selection step
+
+      if (data.success && data.newsletters) {
+        setGeneratedNewsletters(data.newsletters);
+        setEditableNewsletters(data.newsletters);
+        setExpandedNewsletter(1);
+        setCurrentStep(5); // Move to edit step
+      } else {
+        throw new Error('No newsletters generated');
+      }
     } catch (error) {
       console.error('Generation error:', error);
-      alert(`コンテンツの生成に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(`メルマガの生成に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Assemble final content
-  const assembleFinalContent = () => {
-    if (!selectedContent.subject || !selectedContent.introduction ||
-      !selectedContent.structure || !selectedContent.conclusion) {
-      return;
-    }
-
-    const title = selectedContent.subject.content;
-    const content = `${selectedContent.introduction.content}\n\n${selectedContent.structure.content}\n\n${selectedContent.conclusion.content}`;
-
-    setFinalContent({ title, content });
-    setCurrentStep(5);
+  // Update editable newsletter content
+  const updateNewsletterContent = (index: number, field: 'subject' | 'body', value: string) => {
+    setEditableNewsletters(prev => prev.map((nl, i) =>
+      i === index ? { ...nl, [field]: value, wordCount: field === 'body' ? value.length : nl.wordCount } : nl
+    ));
   };
 
-  // Save newsletter
-  const handleSave = async () => {
+  // Save a single newsletter
+  const handleSaveNewsletter = async (index: number) => {
     if (!user || !selectedProduct?.id) return;
 
+    const newsletter = editableNewsletters[index];
+    if (!newsletter) return;
+
+    setSavingIndex(index);
     setIsSaving(true);
     try {
       const newsletterId = await createNewsletter({
         userId: user.uid,
         productId: selectedProduct.id,
         productName: selectedProduct.name,
-        title: finalContent.title,
-        content: finalContent.content,
+        title: newsletter.subject,
+        content: newsletter.body,
         status: 'DRAFT',
+        sequenceNumber: newsletter.number,
+        totalInSequence: selectedCount,
       });
 
-      router.push(`/newsletters/${newsletterId}`);
+      alert(`${newsletter.number}通目を保存しました`);
     } catch (error) {
       console.error('Save error:', error);
       alert('保存に失敗しました。');
     } finally {
       setIsSaving(false);
+      setSavingIndex(null);
+    }
+  };
+
+  // Save all newsletters
+  const handleSaveAll = async () => {
+    if (!user || !selectedProduct?.id) return;
+
+    setIsSaving(true);
+    try {
+      for (let i = 0; i < editableNewsletters.length; i++) {
+        setSavingIndex(i);
+        const newsletter = editableNewsletters[i];
+        await createNewsletter({
+          userId: user.uid,
+          productId: selectedProduct.id,
+          productName: selectedProduct.name,
+          title: newsletter.subject,
+          content: newsletter.body,
+          status: 'DRAFT',
+          sequenceNumber: newsletter.number,
+          totalInSequence: selectedCount,
+        });
+      }
+
+      alert(`${editableNewsletters.length}通全て保存しました！`);
+      router.push('/newsletters');
+    } catch (error) {
+      console.error('Save error:', error);
+      alert('保存に失敗しました。');
+    } finally {
+      setIsSaving(false);
+      setSavingIndex(null);
     }
   };
 
@@ -458,10 +505,9 @@ export default function AICreateNewsletterPage() {
       case 0: return selectedProduct !== null;
       case 1: return selectedCount >= 1 && selectedCount <= 5;
       case 2: return newsletterPlans.length > 0;
-      case 3: return true;
-      case 4: return selectedContent.subject && selectedContent.introduction &&
-        selectedContent.structure && selectedContent.conclusion;
-      case 5: return finalContent.title && finalContent.content;
+      case 3: return newsletterPlans.length > 0; // Confirm step
+      case 4: return true; // Generate step (handled by button)
+      case 5: return editableNewsletters.length > 0;
       default: return false;
     }
   };
@@ -474,11 +520,14 @@ export default function AICreateNewsletterPage() {
       startPlanningChat();
       setCurrentStep(2);
     } else if (currentStep === 2) {
+      // Go to confirm step
       setCurrentStep(3);
     } else if (currentStep === 3) {
-      handleGenerate();
+      // Go to generate step
+      setCurrentStep(4);
     } else if (currentStep === 4) {
-      assembleFinalContent();
+      // Generate is handled by button
+      handleGenerate();
     } else if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     }
@@ -575,24 +624,24 @@ export default function AICreateNewsletterPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="grid gap-4">
+                <div className="grid gap-3">
                   {products.map((product) => (
                     <Card
                       key={product.id}
                       className={cn(
-                        'cursor-pointer transition-all hover:shadow-md',
-                        selectedProduct?.id === product.id && 'border-violet-500 border-2 shadow-md'
+                        'cursor-pointer transition-all hover:shadow-md hover:border-violet-300',
+                        selectedProduct?.id === product.id && 'border-violet-500 border-2 shadow-sm bg-violet-50/10'
                       )}
                       onClick={() => setSelectedProduct(product)}
                     >
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">{product.name}</CardTitle>
+                      <CardHeader className="p-4">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base font-medium">{product.name}</CardTitle>
+                          {selectedProduct?.id === product.id && (
+                            <Check className="h-4 w-4 text-violet-500" />
+                          )}
+                        </div>
                       </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {product.description || '説明なし'}
-                        </p>
-                      </CardContent>
                     </Card>
                   ))}
                 </div>
@@ -757,115 +806,266 @@ export default function AICreateNewsletterPage() {
             </div>
           )}
 
-          {/* Step 3: Confirm & Generate */}
+          {/* Step 3: Confirm - Show all collected info from chat */}
           {currentStep === 3 && (
             <div className="space-y-6">
-              <div className="bg-muted/50 p-6 rounded-lg space-y-4">
-                <h3 className="font-semibold">企画内容の確認</h3>
-                <div className="grid gap-3 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">ローンチコンテンツ:</span>
-                    <span className="ml-2 font-medium">{selectedProduct?.name}</span>
+              <div className="bg-violet-50 dark:bg-violet-950 p-4 rounded-lg">
+                <p className="text-sm font-medium text-violet-700 dark:text-violet-300">
+                  📋 AI壁打ちで収集した情報を確認してください
+                </p>
+                <p className="text-xs mt-1 text-muted-foreground">
+                  以下の情報がメルマガ本文の作成に使用されます
+                </p>
+              </div>
+
+              {/* Basic Info */}
+              <div className="bg-muted/50 p-4 rounded-lg space-y-3">
+                <h3 className="font-semibold text-sm">基本情報</h3>
+                <div className="grid gap-2 text-sm">
+                  <div className="flex">
+                    <span className="text-muted-foreground w-32">ローンチコンテンツ:</span>
+                    <span className="font-medium">{selectedProduct?.name}</span>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">メルマガ通数:</span>
-                    <span className="ml-2">{selectedCount}通</span>
+                  <div className="flex">
+                    <span className="text-muted-foreground w-32">メルマガ通数:</span>
+                    <span>{selectedCount}通</span>
                   </div>
-                  {newsletterPlans.length > 0 && (
-                    <div>
-                      <span className="text-muted-foreground">1通目の論点:</span>
-                      <span className="ml-2">{newsletterPlans[0].mainPoint}</span>
+                </div>
+              </div>
+
+              {/* Collected Experiences */}
+              <div className="bg-muted/50 p-4 rounded-lg space-y-3">
+                <h3 className="font-semibold text-sm">収集した経験談・情報</h3>
+                <div className="max-h-60 overflow-y-auto">
+                  {collectedExperiences ? (
+                    <p className="text-sm whitespace-pre-wrap">{collectedExperiences}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {chatMessages.filter(m => m.role === 'user').map((msg, i) => (
+                        <div key={i} className="p-2 bg-white dark:bg-slate-800 rounded text-sm">
+                          {msg.content}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="text-center py-4">
-                <p className="text-muted-foreground mb-4">
-                  AIが企画に基づいて、件名・導入・本文構成・結論の複数案を生成します。
-                </p>
-                <Button
-                  size="lg"
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                  className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      生成中...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-5 w-5" />
-                      AIで複数案を生成
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
+              {/* Newsletter Plans */}
+              {newsletterPlans.length > 0 && (
+                <div className="bg-muted/50 p-4 rounded-lg space-y-3">
+                  <h3 className="font-semibold text-sm">メルマガ企画（{newsletterPlans.length}通）</h3>
+                  <div className="space-y-3">
+                    {newsletterPlans.map((plan, index) => (
+                      <div key={index} className="p-3 bg-white dark:bg-slate-800 rounded-lg">
+                        <p className="font-medium text-sm">
+                          {plan.number}通目: {plan.subject}
+                        </p>
+                        <div className="mt-2 text-xs space-y-1 text-muted-foreground">
+                          <p><span className="font-medium">論点:</span> {plan.mainPoint}</p>
+                          <p><span className="font-medium">変えたい認識:</span> {plan.targetBelief}</p>
+                          {plan.experienceToUse && (
+                            <p><span className="font-medium">使用する経験:</span> {plan.experienceToUse.slice(0, 100)}...</p>
+                          )}
+                          <p><span className="font-medium">CTA:</span> {plan.cta}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Step 4: Selection */}
-          {currentStep === 4 && generatedContent && (
-            <div className="space-y-8">
-              <p className="text-sm text-muted-foreground bg-violet-50 dark:bg-violet-950 p-4 rounded-lg">
-                💡 AIは選択肢を提示するだけです。最終的に何を選ぶかは、あなたが決めてください。
+              <p className="text-center text-sm text-muted-foreground">
+                この情報を元に、AIが{selectedCount}通分のメルマガを一括生成します
               </p>
-
-              <SelectionSection
-                title="件名を選択"
-                variants={generatedContent.subjects}
-                selected={selectedContent.subject}
-                onSelect={(v) => setSelectedContent({ ...selectedContent, subject: v })}
-              />
-
-              <SelectionSection
-                title="導入部を選択"
-                variants={generatedContent.introductions}
-                selected={selectedContent.introduction}
-                onSelect={(v) => setSelectedContent({ ...selectedContent, introduction: v })}
-              />
-
-              <SelectionSection
-                title="本文構成を選択"
-                variants={generatedContent.structures}
-                selected={selectedContent.structure}
-                onSelect={(v) => setSelectedContent({ ...selectedContent, structure: v })}
-              />
-
-              <SelectionSection
-                title="結論・CTAを選択"
-                variants={generatedContent.conclusions}
-                selected={selectedContent.conclusion}
-                onSelect={(v) => setSelectedContent({ ...selectedContent, conclusion: v })}
-              />
             </div>
           )}
 
-          {/* Step 5: Final Edit */}
-          {currentStep === 5 && (
+          {/* Step 4: Generate - Trigger generation */}
+          {currentStep === 4 && (
             <div className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="finalTitle">件名</Label>
-                <Input
-                  id="finalTitle"
-                  value={finalContent.title}
-                  onChange={(e) => setFinalContent({ ...finalContent, title: e.target.value })}
-                />
+              <div className="text-center py-8">
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-12 w-12 animate-spin mx-auto text-violet-500" />
+                    <p className="text-lg font-medium mt-4">メルマガを生成中...</p>
+                    <p className="text-muted-foreground mt-2">
+                      {selectedCount}通分のメルマガを作成しています。しばらくお待ちください。
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-12 w-12 mx-auto text-violet-500" />
+                    <p className="text-lg font-medium mt-4">準備完了</p>
+                    <p className="text-muted-foreground mt-2 mb-6">
+                      収集した経験談を元に、{selectedCount}通のメルマガを一括生成します
+                    </p>
+                    <Button
+                      size="lg"
+                      onClick={handleGenerate}
+                      disabled={isGenerating}
+                      className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white"
+                    >
+                      <Sparkles className="mr-2 h-5 w-5" />
+                      {selectedCount}通のメルマガを一括生成
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Step 5: Final Edit - Edit newsletters with arrow navigation */}
+          {currentStep === 5 && editableNewsletters.length > 0 && (
+            <div className="space-y-6">
+              {/* Header with navigation */}
+              <div className="flex items-center justify-between">
+                <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg flex-1">
+                  <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                    🎉 {editableNewsletters.length}通のメルマガが生成されました！
+                  </p>
+                </div>
+
+                {/* Navigation Arrows */}
+                <div className="flex items-center gap-2 ml-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setExpandedNewsletter(Math.max(1, expandedNewsletter - 1))}
+                    disabled={expandedNewsletter <= 1}
+                    className="h-9 w-9"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <span className="text-sm font-medium px-3 py-1 bg-violet-100 dark:bg-violet-900 rounded-full min-w-[80px] text-center">
+                    {expandedNewsletter}通目 / {editableNewsletters.length}通
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setExpandedNewsletter(Math.min(editableNewsletters.length, expandedNewsletter + 1))}
+                    disabled={expandedNewsletter >= editableNewsletters.length}
+                    className="h-9 w-9"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="finalContent">本文</Label>
-                <Textarea
-                  id="finalContent"
-                  value={finalContent.content}
-                  onChange={(e) => setFinalContent({ ...finalContent, content: e.target.value })}
-                  className="min-h-[400px] font-mono text-sm"
-                />
-              </div>
+              {/* Current Newsletter Editor */}
+              {(() => {
+                const currentIndex = expandedNewsletter - 1;
+                const newsletter = editableNewsletters[currentIndex];
+                if (!newsletter) return null;
 
-              <div className="flex gap-4">
+                return (
+                  <Card className="border-2 border-violet-200">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-violet-500 text-white flex items-center justify-center font-bold text-lg">
+                            {newsletter.number}
+                          </div>
+                          <div>
+                            <CardTitle className="text-lg">{newsletter.number}通目</CardTitle>
+                            <CardDescription>
+                              {newsletter.wordCount.toLocaleString()}文字
+                              {newsletter.qualityCheck?.experienceWordCount && (
+                                <span className="ml-2">
+                                  (経験談: {newsletter.qualityCheck.experienceWordCount.toLocaleString()}文字)
+                                </span>
+                              )}
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSaveNewsletter(currentIndex)}
+                          disabled={isSaving && savingIndex === currentIndex}
+                        >
+                          {isSaving && savingIndex === currentIndex ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            'この通を保存'
+                          )}
+                        </Button>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-base font-semibold">件名</Label>
+                        <Input
+                          value={newsletter.subject}
+                          onChange={(e) => updateNewsletterContent(currentIndex, 'subject', e.target.value)}
+                          className="text-lg"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-base font-semibold">本文</Label>
+                        <Textarea
+                          value={newsletter.body}
+                          onChange={(e) => updateNewsletterContent(currentIndex, 'body', e.target.value)}
+                          className="min-h-[400px] font-mono text-sm"
+                        />
+                      </div>
+
+                      {/* Quality Indicators */}
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {newsletter.qualityCheck?.hasSceneDescription && (
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs rounded">
+                            ✅ 情景描写あり
+                          </span>
+                        )}
+                        {newsletter.qualityCheck?.numberCount && newsletter.qualityCheck.numberCount >= 3 && (
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs rounded">
+                            ✅ 数字{newsletter.qualityCheck.numberCount}個
+                          </span>
+                        )}
+                        {newsletter.qualityCheck?.hasQuestions && (
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs rounded">
+                            ✅ 問いかけあり
+                          </span>
+                        )}
+                        {newsletter.qualityCheck?.hasCta && (
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs rounded">
+                            ✅ CTAあり
+                          </span>
+                        )}
+                        {newsletter.qualityCheck?.hasPs && (
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs rounded">
+                            ✅ 追伸あり
+                          </span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+              {/* Quick Navigation Dots */}
+              {editableNewsletters.length > 1 && (
+                <div className="flex justify-center gap-2">
+                  {editableNewsletters.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setExpandedNewsletter(index + 1)}
+                      className={cn(
+                        'w-3 h-3 rounded-full transition-all',
+                        expandedNewsletter === index + 1
+                          ? 'bg-violet-500 w-6'
+                          : 'bg-muted hover:bg-violet-300'
+                      )}
+                      aria-label={`${index + 1}通目に移動`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Save All Button */}
+              <div className="flex gap-4 pt-4">
                 <Button
                   variant="outline"
                   onClick={() => router.push('/newsletters')}
@@ -873,19 +1073,19 @@ export default function AICreateNewsletterPage() {
                   キャンセル
                 </Button>
                 <Button
-                  onClick={handleSave}
+                  onClick={handleSaveAll}
                   disabled={isSaving}
                   className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 text-white"
                 >
                   {isSaving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      保存中...
+                      保存中... ({savingIndex !== null ? `${savingIndex + 1}/${editableNewsletters.length}` : ''})
                     </>
                   ) : (
                     <>
                       <Send className="mr-2 h-4 w-4" />
-                      下書きとして保存
+                      {editableNewsletters.length}通すべてを保存
                     </>
                   )}
                 </Button>
@@ -896,7 +1096,7 @@ export default function AICreateNewsletterPage() {
       </Card>
 
       {/* Navigation Buttons */}
-      {currentStep < 5 && (
+      {currentStep < 5 && currentStep !== 4 && (
         <div className="flex justify-between">
           <Button
             variant="outline"
@@ -907,69 +1107,28 @@ export default function AICreateNewsletterPage() {
             戻る
           </Button>
 
-          {currentStep !== 3 && (
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed() || isGenerating || isChatLoading}
-            >
-              {currentStep === 4 ? '内容を確定' : '次へ'}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          )}
+          <Button
+            onClick={handleNext}
+            disabled={!canProceed() || isGenerating || isChatLoading}
+          >
+            次へ
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
         </div>
       )}
-    </div>
-  );
-}
 
-// Selection Section Component
-function SelectionSection({
-  title,
-  variants,
-  selected,
-  onSelect,
-}: {
-  title: string;
-  variants: GeneratedVariant[];
-  selected: GeneratedVariant | null;
-  onSelect: (v: GeneratedVariant) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <h3 className="font-semibold">{title}</h3>
-      <div className="grid gap-3">
-        {variants.map((variant) => (
-          <Card
-            key={variant.id}
-            className={cn(
-              'cursor-pointer transition-all hover:shadow-md',
-              selected?.id === variant.id && 'border-violet-500 border-2'
-            )}
-            onClick={() => onSelect(variant)}
+      {/* Back button only for step 4 */}
+      {currentStep === 4 && !isGenerating && (
+        <div className="flex justify-start">
+          <Button
+            variant="outline"
+            onClick={() => setCurrentStep(3)}
           >
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <div className={cn(
-                  'w-5 h-5 rounded-full border-2 flex-shrink-0 mt-0.5',
-                  selected?.id === variant.id
-                    ? 'border-violet-500 bg-violet-500'
-                    : 'border-muted-foreground'
-                )}>
-                  {selected?.id === variant.id && (
-                    <Check className="h-4 w-4 text-white" />
-                  )}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <p className="text-sm whitespace-pre-wrap">{variant.content}</p>
-                  <p className="text-xs text-muted-foreground">
-                    💡 {variant.reasoning}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            戻る
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

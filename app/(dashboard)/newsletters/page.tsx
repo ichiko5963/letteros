@@ -38,21 +38,66 @@ export default function NewslettersPage() {
     }
   }, [user, loading, router]);
 
-  // Load data non-blocking
+  // Load data non-blocking - localStorage first for instant display
   useEffect(() => {
     if (user) {
-      setIsLoading(true);
+      // Step 1: Load from localStorage immediately (instant)
+      try {
+        const localNewsletters = JSON.parse(localStorage.getItem('letteros_newsletters') || '[]');
+        const localUserNewsletters = localNewsletters.filter((n: Newsletter) => n.userId === user.uid);
+        if (localUserNewsletters.length > 0) {
+          setNewsletters(localUserNewsletters);
+          setIsLoading(false); // Show data immediately
+        }
+      } catch {
+        // Ignore localStorage errors
+      }
+
+      // Step 2: Load from Firestore in background and merge
       import('@/lib/firebase/firestore-helpers').then(({ getUserNewsletters }) => {
         getUserNewsletters(user.uid)
-          .then(setNewsletters)
-          .catch(console.error)
-          .finally(() => setIsLoading(false));
+          .then((fetchedNewsletters) => {
+            setNewsletters(fetchedNewsletters);
+            setIsLoading(false);
+            // Update localStorage
+            localStorage.setItem('letteros_newsletters', JSON.stringify(fetchedNewsletters));
+          })
+          .catch(console.error);
       });
     }
   }, [user]);
 
   if (!user && !loading) {
-    return null;
+    // Show skeleton while redirecting instead of white screen
+    return (
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">メルマガ</h1>
+            <p className="text-muted-foreground mt-2">
+              作成・配信したメルマガを管理
+            </p>
+          </div>
+          <Button disabled>
+            <Plus className="mr-2 h-4 w-4" />
+            新規作成
+          </Button>
+        </div>
+        <div className="grid gap-4">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="h-6 w-48 bg-muted animate-pulse rounded" />
+                <div className="h-4 w-32 bg-muted animate-pulse rounded mt-2" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-4 w-64 bg-muted animate-pulse rounded" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (

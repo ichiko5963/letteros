@@ -91,7 +91,8 @@ export default function AnalyticsPage() {
       title: '平均開封率',
       value: '--',
       icon: Eye,
-      description: 'Resend連携後に表示',
+      description: 'API設定が必要です',
+      link: '/settings',
       color: 'text-emerald-500',
       comingSoon: true,
     },
@@ -99,7 +100,8 @@ export default function AnalyticsPage() {
       title: '平均クリック率',
       value: '--',
       icon: MousePointer,
-      description: 'Resend連携後に表示',
+      description: 'API設定が必要です',
+      link: '/settings',
       color: 'text-indigo-500',
       comingSoon: true,
     },
@@ -164,7 +166,7 @@ export default function AnalyticsPage() {
               <Card key={metric.title} className="relative overflow-hidden">
                 {metric.comingSoon && (
                   <div className="absolute top-2 right-2 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-xs rounded-full text-muted-foreground">
-                    Coming Soon
+                    要設定
                   </div>
                 )}
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -175,9 +177,16 @@ export default function AnalyticsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-muted-foreground">{metric.value}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {metric.description}
-                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-muted-foreground">
+                      {metric.description}
+                    </p>
+                    {metric.link && (
+                      <Link href={metric.link} className="text-xs text-primary hover:underline">
+                        設定する
+                      </Link>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );

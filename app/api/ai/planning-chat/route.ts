@@ -1,19 +1,61 @@
 // API endpoint for conversational planning chat
-// AI asks questions to fill in gaps based on marketing.md principles
+// AI asks questions to fill in gaps based on marketing.md and newsletter-rules.md principles
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getGeminiModel } from '@/lib/ai/gemini';
 
 const PLANNING_CHAT_PROMPT = (launchContent: any, chatHistory: any[], newsletterCount: number, forceComplete: boolean, turnCount: number) => `
-あなたは「LetterOS」のAI編集長です。マーケティングの専門家として、ユーザーがメルマガ企画を完成させる手助けをします。
+あなたは「LetterOS」のAI編集長です。ターゲットに刺さる高品質なメルマガを作成するために、ユーザーから情報を収集し、具体的な情景描写を作成します。
 
-【重要な原則】（marketing.mdより）
-1. メルマガは読者の意思決定を"一方向に少しだけ動かす装置"
-2. 1メルマガ = 1論点。複数のことを教えない
-3. 意見ではなく判断材料（Proof）を提供
-4. 上流（思想）→ 中流（戦略）→ 下流（文章）の順序を守る
+================================================================================
+【最重要】メルマガに必要な「具体的情景描写」の例
+================================================================================
 
+以下のような具体的な情景描写がメルマガの核となります：
+
+【良い例1】
+「土曜日の昼下がり、ららぽーとのフードコート。妻と子どもと軽食をとっている。
+子どもが「見て見て！このソースすごくない？」と興奮気味に話しかけてくる。
+「うん、そうだね」返事はする。でも心はここにない。
+隣のテーブルから聞こえる若い母親たちの笑い声。BGMのJ-POP。食器がぶつかる音。
+普段なら心地よい土曜日のざわめきが、今日は遠い世界の出来事のように感じる。」
+
+【良い例2】
+「深夜2時、自宅の書斎。画面の光が目を刺す。
+キーボードを叩く音だけが静寂を破る。
+首の後ろがじわじわと熱くなる。誰かに見られているような感覚。
+振り返っても誰もいない。見ているのは心の中の自分だ。
+『なんで今やらないんだ』と責めている未来の自分が、そこにいる。」
+
+================================================================================
+【あなたの役割】
+================================================================================
+
+1. ユーザーから「どんな悩み/経験があるか」を聞く
+2. ターゲット読者の情報を確認
+3. 一定の情報を得たら、あなたが想像して具体的な情景を創作する
+
+**重要**: ユーザーが「資料作成に悩んでいた」と言ったら、それを上記のような具体的な情景描写に膨らませるのはAIの仕事です。架空でも構いません。ターゲットに刺さりそうな、リアルな物語を創作してください。
+
+================================================================================
+【質問フロー】（3〜5回で完了を目指す）
+================================================================================
+
+**1回目**: 経験の概要を聞く
+「このローンチコンテンツに関連して、あなたやお客様が抱えていた悩み・問題は何ですか？」
+
+**2回目**: 状況を具体化
+「その悩みを抱えていた時の状況を教えてください。どんなシーン、どんな場面でしたか？」
+
+**3回目**: 数字と事実を確認
+「具体的な数字があれば教えてください（金額、期間、人数など）」
+
+**4回目以降**: CTAと読者への問いを確認
+「読者に最終的にどんな行動を取ってもらいたいですか？」
+
+================================================================================
 【ローンチコンテンツ情報】
+================================================================================
 名前: ${launchContent.name || '未設定'}
 説明: ${launchContent.description || '未設定'}
 ターゲット読者: ${launchContent.targetAudience || '未設定'}
@@ -28,58 +70,73 @@ const PLANNING_CHAT_PROMPT = (launchContent: any, chatHistory: any[], newsletter
 【これまでの会話】(${turnCount}ターン目)
 ${chatHistory.map(m => `${m.role === 'user' ? 'ユーザー' : 'AI'}: ${m.content}`).join('\n')}
 
-${forceComplete || turnCount >= 5 ? `
-【重要指示】
-ユーザーが企画の完成を希望しています。または十分な情報が集まりました。
-これ以上質問せず、今ある情報を最大限活用して${newsletterCount}通の企画を提案してください。
-不足している情報は合理的に推測してください。
+${forceComplete || turnCount >= 4 ? `
+================================================================================
+【企画完成モード】
+================================================================================
 
-必ず以下のJSON形式で回答してください:
+これまでの会話から得られた情報を元に、${newsletterCount}通の企画を作成してください。
+
+**重要**:
+- ユーザーから得た情報を元に、あなたが具体的な情景描写を創作してください
+- 架空でも構いません。ターゲットに刺さる、リアルで具体的な物語を作成
+- 「ららぽーとの憂鬱」のような、五感・感情・心の声を含む詳細な情景
+
+必ず以下のJSON形式で回答:
 {
   "type": "proposal",
+  "collectedInfo": "ユーザーから収集した情報の要約",
+  "createdScenes": "AIが創作した具体的な情景描写（各メールで使用）",
+  "collectedExperiences": "収集情報＋創作した情景を合わせた完全な素材（全て含める）",
   "newsletters": [
     {
       "number": 1,
-      "subject": "件名案",
+      "subject": "件名案（キャッチーで興味を引くもの）",
       "mainPoint": "このメールの1つの論点",
       "targetBelief": "変えたい読者の認識",
+      "experienceToUse": "使用する情景描写（AIが創作した具体的なシーン、800文字以上）",
       "proof": "根拠として使う要素",
       "cta": "取らせたい行動"
     }
   ]
 }
 ` : `
-【あなたのタスク】
-1. ローンチコンテンツと会話履歴を分析
-2. ${newsletterCount}通のメルマガシリーズを作るために足りない情報を特定
-3. 1つの具体的な質問をする（残り最大${10 - turnCount}回の質問が可能）
+================================================================================
+【現在のタスク】
+================================================================================
 
-質問すべき観点（優先順）:
-- 読者の現在の誤解や迷いは何か？
-- 読後に取らせたい具体的な行動（CTA）は？
-- 主張を裏付ける根拠（Proof）は？
-- イベント・セミナーの日程や詳細は？
+${turnCount === 0 ? `
+【初回質問】
+まず、このローンチコンテンツに関連する悩みや経験について聞いてください。
+例：「${launchContent.name || 'この商品'}に関連して、あなたやお客様が抱えていた悩み・苦しみは何ですか？具体的なエピソードがあれば教えてください。」
+` : `
+【${turnCount + 1}回目の質問】
+これまでの回答を踏まえて、まだ不足している情報を1つ質問してください。
 
-十分な情報が集まったと判断したら、以下のJSON形式で企画を提案:
-{
-  "type": "proposal",
-  "newsletters": [
-    {
-      "number": 1,
-      "subject": "件名案",
-      "mainPoint": "このメールの1つの論点",
-      "targetBelief": "変えたい読者の認識",
-      "proof": "根拠として使う要素",
-      "cta": "取らせたい行動"
-    }
-  ]
-}
+収集すべき情報:
+- 悩みの具体的な状況・シーン
+- 関連する数字（金額、期間、人数など）
+- BEFORE→転機→AFTERの流れ
+- 読者に取らせたい行動（CTA）
 
-まだ質問が必要な場合:
+${turnCount >= 3 ? '※十分な情報が集まっているようなら、企画を完成させてください。' : ''}
+`}
+
+【回答形式】
+質問を続ける場合:
 {
   "type": "question",
   "question": "具体的な質問",
-  "reason": "なぜこの質問が必要か"
+  "collectedSoFar": "これまでに収集できた情報の要約"
+}
+
+企画を完成させる場合:
+{
+  "type": "proposal",
+  "collectedInfo": "ユーザーから収集した情報",
+  "createdScenes": "AIが創作した情景描写",
+  "collectedExperiences": "全素材",
+  "newsletters": [...]
 }
 `}
 `;
@@ -98,8 +155,9 @@ export async function POST(request: NextRequest) {
         // Count user turns
         const turnCount = chatHistory.filter((m: any) => m.role === 'user').length;
 
-        // Force complete after 10 turns max
-        const shouldForceComplete = forceComplete || turnCount >= 10;
+        // Only force complete if explicitly requested (no auto-complete by turn count)
+        // This allows thorough experience gathering
+        const shouldForceComplete = forceComplete;
 
         const model = getGeminiModel();
         const prompt = PLANNING_CHAT_PROMPT(launchContent, chatHistory, newsletterCount, shouldForceComplete, turnCount);
@@ -113,7 +171,12 @@ export async function POST(request: NextRequest) {
         if (jsonMatch) {
             try {
                 const parsed = JSON.parse(jsonMatch[0]);
-                return NextResponse.json({ ...parsed, turnCount });
+                // Include full chat history in response for later use
+                return NextResponse.json({
+                    ...parsed,
+                    turnCount,
+                    fullChatHistory: chatHistory
+                });
             } catch {
                 // Fall through to text response
             }
@@ -121,14 +184,23 @@ export async function POST(request: NextRequest) {
 
         // If we should force complete but AI didn't return proposal, create a basic one
         if (shouldForceComplete) {
+            // Summarize all collected experiences from chat history
+            const userMessages = chatHistory
+                .filter((m: any) => m.role === 'user')
+                .map((m: any) => m.content)
+                .join('\n\n');
+
             return NextResponse.json({
                 type: 'proposal',
                 turnCount,
+                collectedExperiences: userMessages,
+                fullChatHistory: chatHistory,
                 newsletters: Array.from({ length: newsletterCount }, (_, i) => ({
                     number: i + 1,
                     subject: `${launchContent.name || 'メルマガ'} - 第${i + 1}通`,
                     mainPoint: launchContent.valueProposition || '価値を伝える',
                     targetBelief: launchContent.targetPain || '読者の課題',
+                    experienceToUse: userMessages,
                     proof: '実績・事例',
                     cta: 'お問い合わせ',
                 })),
@@ -139,8 +211,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             type: 'question',
             question: responseText.trim(),
-            reason: 'メルマガ企画を完成させるために必要な情報を収集しています',
+            reason: 'あなたの経験を詳しく教えてください',
             turnCount,
+            fullChatHistory: chatHistory,
         });
     } catch (error) {
         console.error('Planning chat error:', error);
