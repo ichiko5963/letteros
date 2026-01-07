@@ -15,6 +15,7 @@ import {
   Rocket,
   Users,
   Sparkles,
+  FileText,
 } from 'lucide-react';
 
 const navItems = [
@@ -27,6 +28,11 @@ const navItems = [
     title: 'メルマガ',
     href: '/newsletters',
     icon: Mail,
+  },
+  {
+    title: 'コンテキスト',
+    href: '/contexts',
+    icon: FileText,
   },
   {
     title: 'リスト管理',

@@ -267,6 +267,19 @@ export async function POST(request: NextRequest) {
                 // Unescape common escape sequences
                 cleanBody = cleanBody.replace(/\\n/g, '\n').replace(/\\"/g, '"');
 
+                // Remove subject line if it appears at the start of body
+                const subjectPatterns = [
+                    new RegExp(`^【件名】.*?\n+`, 'i'),
+                    new RegExp(`^件名[:：].*?\n+`, 'i'),
+                    new RegExp(`^Subject[:：].*?\n+`, 'i'),
+                    new RegExp(`^${parsed.subject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\n+`, 'i'),
+                ];
+                for (const pattern of subjectPatterns) {
+                    cleanBody = cleanBody.replace(pattern, '');
+                }
+                // Trim leading/trailing whitespace
+                cleanBody = cleanBody.trim();
+
                 generatedNewsletters.push({
                     number: i,
                     subject: parsed.subject,
@@ -288,6 +301,18 @@ export async function POST(request: NextRequest) {
 
                 // Clean up body
                 bodyContent = bodyContent.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+
+                // Remove subject line if it appears at the start of body
+                const subjectPatterns = [
+                    new RegExp(`^【件名】.*?\n+`, 'i'),
+                    new RegExp(`^件名[:：].*?\n+`, 'i'),
+                    new RegExp(`^Subject[:：].*?\n+`, 'i'),
+                    new RegExp(`^${subject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\n+`, 'i'),
+                ];
+                for (const pattern of subjectPatterns) {
+                    bodyContent = bodyContent.replace(pattern, '');
+                }
+                bodyContent = bodyContent.trim();
 
                 generatedNewsletters.push({
                     number: i,

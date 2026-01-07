@@ -30,6 +30,9 @@ import {
   Hash,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
+  X,
+  Wand2,
 } from 'lucide-react';
 import { getUserProducts, Product, createNewsletter } from '@/lib/firebase/firestore-helpers';
 import { cn } from '@/lib/utils';
@@ -118,6 +121,33 @@ export default function AICreateNewsletterPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
 
+  // Plan editing state
+  const [editingPlan, setEditingPlan] = useState<{ index: number; field: string } | null>(null);
+  const [planEditInput, setPlanEditInput] = useState('');
+  const [isLoadingAlternatives, setIsLoadingAlternatives] = useState(false);
+  const [alternatives, setAlternatives] = useState<{ value: string; reason: string }[]>([]);
+  const [isModifyingPlan, setIsModifyingPlan] = useState(false);
+
+  // AI Assist state for final edit
+  const [showSubjectAssist, setShowSubjectAssist] = useState(false);
+  const [showBodyAssist, setShowBodyAssist] = useState(false);
+  const [subjectAlternatives, setSubjectAlternatives] = useState<{ value: string; reason: string }[]>([]);
+  const [isLoadingSubjectAlternatives, setIsLoadingSubjectAlternatives] = useState(false);
+  const [bodyAssistInput, setBodyAssistInput] = useState('');
+  const [isModifyingBody, setIsModifyingBody] = useState(false);
+
+  // Context-based generation state
+  const [showContextSelector, setShowContextSelector] = useState(false);
+  const [availableContexts, setAvailableContexts] = useState<{ id: string; title: string; content: string }[]>([]);
+  const [selectedContextIds, setSelectedContextIds] = useState<string[]>([]);
+  const [contextRecommendations, setContextRecommendations] = useState<{
+    id: string;
+    relevanceScore: number;
+    reason: string;
+    suggestedUse: string;
+  }[]>([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+
   // Auth check
   useEffect(() => {
     if (!loading && !user) {
@@ -166,6 +196,25 @@ export default function AICreateNewsletterPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // Load available contexts
+  useEffect(() => {
+    if (user) {
+      try {
+        const savedContexts = localStorage.getItem(`letteros_contexts_${user.uid}`);
+        if (savedContexts) {
+          const parsed = JSON.parse(savedContexts);
+          setAvailableContexts(parsed.map((c: any) => ({
+            id: c.id,
+            title: c.title,
+            content: c.content,
+          })));
+        }
+      } catch (error) {
+        console.error('Failed to load contexts:', error);
+      }
+    }
+  }, [user]);
 
   // Fetch count suggestion when product is selected
   const fetchCountSuggestion = async () => {
@@ -434,6 +483,297 @@ export default function AICreateNewsletterPage() {
     setEditableNewsletters(prev => prev.map((nl, i) =>
       i === index ? { ...nl, [field]: value, wordCount: field === 'body' ? value.length : nl.wordCount } : nl
     ));
+  };
+
+  // Update newsletter plan field
+  const updatePlanField = (index: number, field: keyof NewsletterPlan, value: string) => {
+    setNewsletterPlans(prev => prev.map((plan, i) =>
+      i === index ? { ...plan, [field]: value } : plan
+    ));
+  };
+
+  // Start editing a plan field
+  const startEditingPlan = (index: number, field: string) => {
+    setEditingPlan({ index, field });
+    setPlanEditInput('');
+    setAlternatives([]);
+  };
+
+  // Cancel editing
+  const cancelEditingPlan = () => {
+    setEditingPlan(null);
+    setPlanEditInput('');
+    setAlternatives([]);
+  };
+
+  // Generate alternatives for a field
+  const generateAlternatives = async (index: number, field: string) => {
+    if (!selectedProduct) return;
+
+    setIsLoadingAlternatives(true);
+    setAlternatives([]);
+
+    try {
+      const response = await fetch('/api/ai/modify-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'alternatives',
+          plan: newsletterPlans[index],
+          field,
+          instruction: '',
+          launchContent: {
+            name: selectedProduct.name,
+            description: selectedProduct.description,
+            targetAudience: selectedProduct.targetAudience,
+          },
+          collectedExperiences: collectedExperiences || chatMessages.filter(m => m.role === 'user').map(m => m.content).join('\n\n'),
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.alternatives) {
+        setAlternatives(data.alternatives);
+      }
+    } catch (error) {
+      console.error('Failed to generate alternatives:', error);
+    } finally {
+      setIsLoadingAlternatives(false);
+    }
+  };
+
+  // Modify plan with AI based on instruction
+  const modifyPlanWithAI = async (index: number, field: string, instruction: string) => {
+    if (!selectedProduct || !instruction.trim()) return;
+
+    setIsModifyingPlan(true);
+
+    try {
+      const response = await fetch('/api/ai/modify-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'modify',
+          plan: newsletterPlans[index],
+          field,
+          instruction,
+          launchContent: {
+            name: selectedProduct.name,
+            description: selectedProduct.description,
+            targetAudience: selectedProduct.targetAudience,
+          },
+          collectedExperiences: collectedExperiences || chatMessages.filter(m => m.role === 'user').map(m => m.content).join('\n\n'),
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.modifiedValue) {
+        updatePlanField(index, field as keyof NewsletterPlan, data.modifiedValue);
+        cancelEditingPlan();
+      }
+    } catch (error) {
+      console.error('Failed to modify plan:', error);
+    } finally {
+      setIsModifyingPlan(false);
+    }
+  };
+
+  // Apply an alternative
+  const applyAlternative = (index: number, field: string, value: string) => {
+    updatePlanField(index, field as keyof NewsletterPlan, value);
+    cancelEditingPlan();
+  };
+
+  // Generate subject alternatives for final edit
+  const generateSubjectAlternatives = async (index: number) => {
+    const newsletter = editableNewsletters[index];
+    if (!newsletter) return;
+
+    setIsLoadingSubjectAlternatives(true);
+    setSubjectAlternatives([]);
+
+    try {
+      const response = await fetch('/api/ai/assist-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'subject_alternatives',
+          currentSubject: newsletter.subject,
+          currentBody: newsletter.body,
+          launchContent: {
+            name: selectedProduct?.name,
+            targetAudience: selectedProduct?.targetAudience,
+          },
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.alternatives) {
+        setSubjectAlternatives(data.alternatives);
+      }
+    } catch (error) {
+      console.error('Failed to generate subject alternatives:', error);
+    } finally {
+      setIsLoadingSubjectAlternatives(false);
+    }
+  };
+
+  // Apply subject alternative
+  const applySubjectAlternative = (index: number, value: string) => {
+    updateNewsletterContent(index, 'subject', value);
+    setShowSubjectAssist(false);
+    setSubjectAlternatives([]);
+  };
+
+  // Modify body with AI
+  const modifyBodyWithAI = async (index: number, instruction: string) => {
+    const newsletter = editableNewsletters[index];
+    if (!newsletter || !instruction.trim()) return;
+
+    setIsModifyingBody(true);
+
+    try {
+      const response = await fetch('/api/ai/assist-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'body_modify',
+          currentBody: newsletter.body,
+          instruction,
+          selectedText: newsletter.body.slice(0, 500), // Modify first part for now
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.modifiedText) {
+        // Replace the modified portion
+        const newBody = data.modifiedText + newsletter.body.slice(500);
+        updateNewsletterContent(index, 'body', newBody);
+        setBodyAssistInput('');
+        setShowBodyAssist(false);
+      }
+    } catch (error) {
+      console.error('Failed to modify body:', error);
+    } finally {
+      setIsModifyingBody(false);
+    }
+  };
+
+  // Fetch AI recommendations for contexts
+  const fetchContextRecommendations = async () => {
+    if (!selectedProduct || availableContexts.length === 0) return;
+
+    setIsLoadingRecommendations(true);
+    setContextRecommendations([]);
+
+    try {
+      const launchContent = {
+        name: selectedProduct.name,
+        description: selectedProduct.description,
+        targetAudience: selectedProduct.targetAudience,
+        valueProposition: selectedProduct.valueProposition,
+        concept: selectedProduct.launchContent?.concept,
+        targetPain: selectedProduct.launchContent?.targetPain,
+      };
+
+      const response = await fetch('/api/ai/recommend-contexts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          launchContent,
+          contexts: availableContexts,
+          newsletterCount: selectedCount,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.recommendations) {
+        setContextRecommendations(data.recommendations);
+        // Auto-select top recommended contexts (up to newsletterCount)
+        const topRecommended = data.recommendations
+          .filter((r: { relevanceScore: number }) => r.relevanceScore >= 60)
+          .slice(0, Math.min(selectedCount, 3))
+          .map((r: { id: string }) => r.id);
+        setSelectedContextIds(topRecommended);
+      }
+    } catch (error) {
+      console.error('Failed to fetch context recommendations:', error);
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  };
+
+  // Toggle context selection
+  const toggleContextSelection = (contextId: string) => {
+    setSelectedContextIds(prev =>
+      prev.includes(contextId)
+        ? prev.filter(id => id !== contextId)
+        : [...prev, contextId]
+    );
+  };
+
+  // Generate from selected contexts
+  const handleGenerateFromContexts = async () => {
+    if (selectedContextIds.length === 0 || !selectedProduct) return;
+
+    // Combine selected contexts as collected experiences
+    const selectedContextsContent = availableContexts
+      .filter(c => selectedContextIds.includes(c.id))
+      .map(c => `【${c.title}】\n${c.content}`)
+      .join('\n\n---\n\n');
+
+    setCollectedExperiences(selectedContextsContent);
+    setShowContextSelector(false);
+
+    // Force complete with the context data
+    setIsChatLoading(true);
+    setChatMessages([{
+      role: 'assistant',
+      content: `コンテキストから${selectedContextIds.length}件のエピソードを読み込みました。これを元に企画を作成します...`
+    }]);
+
+    try {
+      const launchContent = {
+        name: selectedProduct.name,
+        description: selectedProduct.description,
+        targetAudience: selectedProduct.targetAudience,
+        valueProposition: selectedProduct.valueProposition,
+        concept: selectedProduct.launchContent?.concept,
+        targetPain: selectedProduct.launchContent?.targetPain,
+        currentState: selectedProduct.launchContent?.currentState,
+        idealFuture: selectedProduct.launchContent?.idealFuture,
+      };
+
+      const response = await fetch('/api/ai/planning-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          launchContent,
+          chatHistory: [{ role: 'user', content: selectedContextsContent }],
+          newsletterCount: selectedCount,
+          forceComplete: true,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.type === 'proposal') {
+        setNewsletterPlans(data.newsletters);
+        setCollectedExperiences(data.collectedExperiences || selectedContextsContent);
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `🎉 ${data.newsletters.length}通のメルマガ企画を作成しました！「次へ」をクリックして確認しましょう。`
+        }]);
+      }
+    } catch (error) {
+      console.error('Failed to generate from contexts:', error);
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'エラーが発生しました。もう一度お試しください。'
+      }]);
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
   // Save a single newsletter
@@ -719,10 +1059,153 @@ export default function AICreateNewsletterPage() {
           {/* Step 2: AI Chat Planning */}
           {currentStep === 2 && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground bg-violet-50 dark:bg-violet-950 p-4 rounded-lg">
-                💬 AIと対話しながら、{selectedCount}通のメルマガ企画を詰めていきます。
-                質問に答えていくと、企画が完成します。
-              </p>
+              <div className="flex items-start justify-between gap-4">
+                <p className="text-sm text-muted-foreground bg-violet-50 dark:bg-violet-950 p-4 rounded-lg flex-1">
+                  💬 AIと対話しながら、{selectedCount}通のメルマガ企画を詰めていきます。
+                  質問に答えていくと、企画が完成します。
+                </p>
+                {availableContexts.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => {
+                      if (!showContextSelector) {
+                        setShowContextSelector(true);
+                        fetchContextRecommendations();
+                      } else {
+                        setShowContextSelector(false);
+                      }
+                    }}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    コンテキストから生成
+                  </Button>
+                )}
+              </div>
+
+              {/* Context Selector with AI Recommendations */}
+              {showContextSelector && (
+                <div className="p-4 border-2 border-violet-200 rounded-lg bg-violet-50/50 dark:bg-violet-950/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-violet-500" />
+                      AIおすすめ順でコンテキストを選択
+                    </h4>
+                    <Button variant="ghost" size="sm" onClick={() => setShowContextSelector(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    「{selectedProduct?.name}」に最適なエピソードをAIが選定しました。
+                    {availableContexts.length > 10 && `（${availableContexts.length}件中トップ10を表示）`}
+                  </p>
+
+                  {isLoadingRecommendations ? (
+                    <div className="flex flex-col items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-violet-500 mb-2" />
+                      <span className="text-sm text-muted-foreground">AIがコンテキストを分析中...</span>
+                      <span className="text-xs text-muted-foreground mt-1">
+                        {availableContexts.length > 10 ? 'タイトルから候補を選定 → 内容を読んでスコア付け' : '内容を読んでスコア付け中'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-72 overflow-y-auto mb-3">
+                      {/* Only show contexts that have recommendations (max 10) */}
+                      {contextRecommendations.length > 0 ? (
+                        contextRecommendations.map((recommendation, index) => {
+                          const context = availableContexts.find(c => c.id === recommendation.id);
+                          if (!context) return null;
+
+                          const score = recommendation.relevanceScore;
+                          const isHighlyRecommended = score >= 80;
+
+                          return (
+                            <div
+                              key={context.id}
+                              className={cn(
+                                'p-3 rounded-lg cursor-pointer transition-colors border',
+                                selectedContextIds.includes(context.id)
+                                  ? 'bg-violet-100 dark:bg-violet-900 border-violet-400'
+                                  : isHighlyRecommended
+                                    ? 'bg-amber-50 dark:bg-amber-950 border-amber-200 hover:border-amber-300'
+                                    : 'bg-white dark:bg-slate-800 border-gray-100 hover:border-violet-200'
+                              )}
+                              onClick={() => toggleContextSelection(context.id)}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={cn(
+                                  'w-5 h-5 rounded border flex items-center justify-center shrink-0 mt-0.5',
+                                  selectedContextIds.includes(context.id)
+                                    ? 'bg-violet-500 border-violet-500 text-white'
+                                    : 'border-gray-300'
+                                )}>
+                                  {selectedContextIds.includes(context.id) && <Check className="h-3 w-3" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs text-muted-foreground font-medium">#{index + 1}</span>
+                                    <span className="text-sm font-medium truncate">{context.title}</span>
+                                    {isHighlyRecommended && (
+                                      <span className="shrink-0 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 text-xs rounded-full font-medium">
+                                        おすすめ
+                                      </span>
+                                    )}
+                                    <span className={cn(
+                                      'shrink-0 text-xs font-bold ml-auto',
+                                      score >= 80 ? 'text-amber-600' : score >= 60 ? 'text-green-600' : 'text-muted-foreground'
+                                    )}>
+                                      {score}点
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-violet-600 dark:text-violet-400 mb-1">
+                                    {recommendation.reason}
+                                  </p>
+                                  {recommendation.suggestedUse && (
+                                    <p className="text-xs text-muted-foreground">
+                                      💡 {recommendation.suggestedUse}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          おすすめのコンテキストが見つかりませんでした
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="text-xs text-muted-foreground">
+                      {selectedContextIds.length}件選択中
+                    </span>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setShowContextSelector(false)}>
+                        キャンセル
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleGenerateFromContexts}
+                        disabled={selectedContextIds.length === 0 || isChatLoading || isLoadingRecommendations}
+                        className="bg-violet-500 hover:bg-violet-600 text-white"
+                      >
+                        {isChatLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-1" />
+                            {selectedContextIds.length}件で企画を生成
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Chat Messages */}
               <div className="h-80 overflow-y-auto border rounded-lg p-4 space-y-4 bg-slate-50 dark:bg-slate-900">
@@ -806,15 +1289,15 @@ export default function AICreateNewsletterPage() {
             </div>
           )}
 
-          {/* Step 3: Confirm - Show all collected info from chat */}
+          {/* Step 3: Confirm - Show all collected info from chat with AI editing */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="bg-violet-50 dark:bg-violet-950 p-4 rounded-lg">
                 <p className="text-sm font-medium text-violet-700 dark:text-violet-300">
-                  📋 AI壁打ちで収集した情報を確認してください
+                  📋 企画を確認・修正してください
                 </p>
                 <p className="text-xs mt-1 text-muted-foreground">
-                  以下の情報がメルマガ本文の作成に使用されます
+                  各項目の横にある<Wand2 className="inline h-3 w-3 mx-1" />をクリックすると、AIで別案を生成できます
                 </p>
               </div>
 
@@ -836,7 +1319,7 @@ export default function AICreateNewsletterPage() {
               {/* Collected Experiences */}
               <div className="bg-muted/50 p-4 rounded-lg space-y-3">
                 <h3 className="font-semibold text-sm">収集した経験談・情報</h3>
-                <div className="max-h-60 overflow-y-auto">
+                <div className="max-h-40 overflow-y-auto">
                   {collectedExperiences ? (
                     <p className="text-sm whitespace-pre-wrap">{collectedExperiences}</p>
                   ) : (
@@ -851,32 +1334,314 @@ export default function AICreateNewsletterPage() {
                 </div>
               </div>
 
-              {/* Newsletter Plans */}
+              {/* Newsletter Plans - Editable */}
               {newsletterPlans.length > 0 && (
-                <div className="bg-muted/50 p-4 rounded-lg space-y-3">
-                  <h3 className="font-semibold text-sm">メルマガ企画（{newsletterPlans.length}通）</h3>
-                  <div className="space-y-3">
-                    {newsletterPlans.map((plan, index) => (
-                      <div key={index} className="p-3 bg-white dark:bg-slate-800 rounded-lg">
-                        <p className="font-medium text-sm">
-                          {plan.number}通目: {plan.subject}
-                        </p>
-                        <div className="mt-2 text-xs space-y-1 text-muted-foreground">
-                          <p><span className="font-medium">論点:</span> {plan.mainPoint}</p>
-                          <p><span className="font-medium">変えたい認識:</span> {plan.targetBelief}</p>
-                          {plan.experienceToUse && (
-                            <p><span className="font-medium">使用する経験:</span> {plan.experienceToUse.slice(0, 100)}...</p>
-                          )}
-                          <p><span className="font-medium">CTA:</span> {plan.cta}</p>
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm">メルマガ企画（{newsletterPlans.length}通）- クリックして編集</h3>
+                  {newsletterPlans.map((plan, index) => (
+                    <Card key={index} className="border-2 hover:border-violet-300 transition-colors">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-violet-500 text-white flex items-center justify-center font-bold">
+                            {plan.number}
+                          </div>
+                          <div className="flex-1">
+                            <span className="text-xs text-muted-foreground">{plan.number}通目</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {/* Subject */}
+                        <div className="group">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">件名</Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => {
+                                startEditingPlan(index, 'subject');
+                                generateAlternatives(index, 'subject');
+                              }}
+                            >
+                              <Wand2 className="h-3 w-3 mr-1" />
+                              別案
+                            </Button>
+                          </div>
+                          {editingPlan?.index === index && editingPlan?.field === 'subject' ? (
+                            <div className="mt-2 space-y-2">
+                              <Input
+                                value={plan.subject}
+                                onChange={(e) => updatePlanField(index, 'subject', e.target.value)}
+                                className="text-sm"
+                              />
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="AIへの指示（例: もっと緊急性を出して）"
+                                  value={planEditInput}
+                                  onChange={(e) => setPlanEditInput(e.target.value)}
+                                  className="flex-1 text-sm"
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={() => modifyPlanWithAI(index, 'subject', planEditInput)}
+                                  disabled={isModifyingPlan || !planEditInput.trim()}
+                                >
+                                  {isModifyingPlan ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={cancelEditingPlan}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {isLoadingAlternatives && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  別案を生成中...
+                                </div>
+                              )}
+                              {alternatives.length > 0 && (
+                                <div className="space-y-1">
+                                  <p className="text-xs text-muted-foreground">別案を選択:</p>
+                                  {alternatives.map((alt, altIndex) => (
+                                    <div
+                                      key={altIndex}
+                                      className="p-2 bg-violet-50 dark:bg-violet-950 rounded cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900 transition-colors"
+                                      onClick={() => applyAlternative(index, 'subject', alt.value)}
+                                    >
+                                      <p className="text-sm font-medium">{alt.value}</p>
+                                      <p className="text-xs text-muted-foreground">{alt.reason}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm font-medium cursor-pointer hover:text-violet-600" onClick={() => startEditingPlan(index, 'subject')}>
+                              {plan.subject}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Main Point */}
+                        <div className="group">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">論点</Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => {
+                                startEditingPlan(index, 'mainPoint');
+                                generateAlternatives(index, 'mainPoint');
+                              }}
+                            >
+                              <Wand2 className="h-3 w-3 mr-1" />
+                              別案
+                            </Button>
+                          </div>
+                          {editingPlan?.index === index && editingPlan?.field === 'mainPoint' ? (
+                            <div className="mt-2 space-y-2">
+                              <Textarea
+                                value={plan.mainPoint}
+                                onChange={(e) => updatePlanField(index, 'mainPoint', e.target.value)}
+                                className="text-sm min-h-[60px]"
+                              />
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="AIへの指示（例: もっと具体的に）"
+                                  value={planEditInput}
+                                  onChange={(e) => setPlanEditInput(e.target.value)}
+                                  className="flex-1 text-sm"
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={() => modifyPlanWithAI(index, 'mainPoint', planEditInput)}
+                                  disabled={isModifyingPlan || !planEditInput.trim()}
+                                >
+                                  {isModifyingPlan ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={cancelEditingPlan}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {isLoadingAlternatives && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  別案を生成中...
+                                </div>
+                              )}
+                              {alternatives.length > 0 && (
+                                <div className="space-y-1">
+                                  <p className="text-xs text-muted-foreground">別案を選択:</p>
+                                  {alternatives.map((alt, altIndex) => (
+                                    <div
+                                      key={altIndex}
+                                      className="p-2 bg-violet-50 dark:bg-violet-950 rounded cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900 transition-colors"
+                                      onClick={() => applyAlternative(index, 'mainPoint', alt.value)}
+                                    >
+                                      <p className="text-sm">{alt.value}</p>
+                                      <p className="text-xs text-muted-foreground">{alt.reason}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm cursor-pointer hover:text-violet-600" onClick={() => startEditingPlan(index, 'mainPoint')}>
+                              {plan.mainPoint}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Experience to Use */}
+                        <div className="group">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">使用する経験</Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => {
+                                startEditingPlan(index, 'experienceToUse');
+                                generateAlternatives(index, 'experienceToUse');
+                              }}
+                            >
+                              <Wand2 className="h-3 w-3 mr-1" />
+                              別案
+                            </Button>
+                          </div>
+                          {editingPlan?.index === index && editingPlan?.field === 'experienceToUse' ? (
+                            <div className="mt-2 space-y-2">
+                              <Textarea
+                                value={plan.experienceToUse}
+                                onChange={(e) => updatePlanField(index, 'experienceToUse', e.target.value)}
+                                className="text-sm min-h-[100px]"
+                              />
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="AIへの指示（例: 家族との場面を追加）"
+                                  value={planEditInput}
+                                  onChange={(e) => setPlanEditInput(e.target.value)}
+                                  className="flex-1 text-sm"
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={() => modifyPlanWithAI(index, 'experienceToUse', planEditInput)}
+                                  disabled={isModifyingPlan || !planEditInput.trim()}
+                                >
+                                  {isModifyingPlan ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={cancelEditingPlan}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {isLoadingAlternatives && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  別案を生成中...
+                                </div>
+                              )}
+                              {alternatives.length > 0 && (
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                  <p className="text-xs text-muted-foreground">別案を選択:</p>
+                                  {alternatives.map((alt, altIndex) => (
+                                    <div
+                                      key={altIndex}
+                                      className="p-2 bg-violet-50 dark:bg-violet-950 rounded cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900 transition-colors"
+                                      onClick={() => applyAlternative(index, 'experienceToUse', alt.value)}
+                                    >
+                                      <p className="text-sm">{alt.value.slice(0, 100)}...</p>
+                                      <p className="text-xs text-muted-foreground">{alt.reason}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm cursor-pointer hover:text-violet-600" onClick={() => startEditingPlan(index, 'experienceToUse')}>
+                              {plan.experienceToUse ? (plan.experienceToUse.length > 150 ? plan.experienceToUse.slice(0, 150) + '...' : plan.experienceToUse) : '（未設定）'}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* CTA */}
+                        <div className="group">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">CTA（行動喚起）</Label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => {
+                                startEditingPlan(index, 'cta');
+                                generateAlternatives(index, 'cta');
+                              }}
+                            >
+                              <Wand2 className="h-3 w-3 mr-1" />
+                              別案
+                            </Button>
+                          </div>
+                          {editingPlan?.index === index && editingPlan?.field === 'cta' ? (
+                            <div className="mt-2 space-y-2">
+                              <Input
+                                value={plan.cta}
+                                onChange={(e) => updatePlanField(index, 'cta', e.target.value)}
+                                className="text-sm"
+                              />
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="AIへの指示（例: 無料相談を促す）"
+                                  value={planEditInput}
+                                  onChange={(e) => setPlanEditInput(e.target.value)}
+                                  className="flex-1 text-sm"
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={() => modifyPlanWithAI(index, 'cta', planEditInput)}
+                                  disabled={isModifyingPlan || !planEditInput.trim()}
+                                >
+                                  {isModifyingPlan ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={cancelEditingPlan}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              {isLoadingAlternatives && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  別案を生成中...
+                                </div>
+                              )}
+                              {alternatives.length > 0 && (
+                                <div className="space-y-1">
+                                  <p className="text-xs text-muted-foreground">別案を選択:</p>
+                                  {alternatives.map((alt, altIndex) => (
+                                    <div
+                                      key={altIndex}
+                                      className="p-2 bg-violet-50 dark:bg-violet-950 rounded cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900 transition-colors"
+                                      onClick={() => applyAlternative(index, 'cta', alt.value)}
+                                    >
+                                      <p className="text-sm">{alt.value}</p>
+                                      <p className="text-xs text-muted-foreground">{alt.reason}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm cursor-pointer hover:text-violet-600" onClick={() => startEditingPlan(index, 'cta')}>
+                              {plan.cta}
+                            </p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               )}
 
               <p className="text-center text-sm text-muted-foreground">
-                この情報を元に、AIが{selectedCount}通分のメルマガを一括生成します
+                企画を確認したら「次へ」をクリックして、{selectedCount}通分のメルマガを一括生成します
               </p>
             </div>
           )}
@@ -994,17 +1759,115 @@ export default function AICreateNewsletterPage() {
                     </CardHeader>
 
                     <CardContent className="space-y-4">
+                      {/* Subject with AI Assist */}
                       <div className="space-y-2">
-                        <Label className="text-base font-semibold">件名</Label>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base font-semibold">件名</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-violet-500 hover:text-violet-700 hover:bg-violet-50"
+                            onClick={() => {
+                              setShowSubjectAssist(!showSubjectAssist);
+                              if (!showSubjectAssist) {
+                                generateSubjectAlternatives(currentIndex);
+                              }
+                            }}
+                          >
+                            <Wand2 className="h-4 w-4 mr-1" />
+                            AIで別案
+                          </Button>
+                        </div>
                         <Input
                           value={newsletter.subject}
                           onChange={(e) => updateNewsletterContent(currentIndex, 'subject', e.target.value)}
                           className="text-lg"
                         />
+                        {/* Subject AI Assist Panel */}
+                        {showSubjectAssist && (
+                          <div className="mt-2 p-3 bg-violet-50 dark:bg-violet-950 rounded-lg border border-violet-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium text-violet-700 dark:text-violet-300">
+                                別案を選択
+                              </span>
+                              <Button variant="ghost" size="sm" onClick={() => setShowSubjectAssist(false)}>
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            {isLoadingSubjectAlternatives ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                別案を生成中...
+                              </div>
+                            ) : subjectAlternatives.length > 0 ? (
+                              <div className="space-y-2">
+                                {subjectAlternatives.map((alt, altIndex) => (
+                                  <div
+                                    key={altIndex}
+                                    className="p-2 bg-white dark:bg-slate-800 rounded cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-900 transition-colors border"
+                                    onClick={() => applySubjectAlternative(currentIndex, alt.value)}
+                                  >
+                                    <p className="text-sm font-medium">{alt.value}</p>
+                                    <p className="text-xs text-muted-foreground">{alt.reason}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">別案を読み込めませんでした</p>
+                            )}
+                          </div>
+                        )}
                       </div>
 
+                      {/* Body with AI Assist */}
                       <div className="space-y-2">
-                        <Label className="text-base font-semibold">本文</Label>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base font-semibold">本文</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-violet-500 hover:text-violet-700 hover:bg-violet-50"
+                            onClick={() => setShowBodyAssist(!showBodyAssist)}
+                          >
+                            <Wand2 className="h-4 w-4 mr-1" />
+                            AIで修正
+                          </Button>
+                        </div>
+                        {/* Body AI Assist Panel */}
+                        {showBodyAssist && (
+                          <div className="p-3 bg-violet-50 dark:bg-violet-950 rounded-lg border border-violet-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium text-violet-700 dark:text-violet-300">
+                                AIに修正を指示
+                              </span>
+                              <Button variant="ghost" size="sm" onClick={() => setShowBodyAssist(false)}>
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="例: 冒頭をもっと感情的に、具体的な数字を追加して"
+                                value={bodyAssistInput}
+                                onChange={(e) => setBodyAssistInput(e.target.value)}
+                                className="flex-1"
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => modifyBodyWithAI(currentIndex, bodyAssistInput)}
+                                disabled={isModifyingBody || !bodyAssistInput.trim()}
+                              >
+                                {isModifyingBody ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              本文の冒頭500文字をAIが修正します
+                            </p>
+                          </div>
+                        )}
                         <Textarea
                           value={newsletter.body}
                           onChange={(e) => updateNewsletterContent(currentIndex, 'body', e.target.value)}

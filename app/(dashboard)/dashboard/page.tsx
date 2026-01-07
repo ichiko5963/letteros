@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Mail, Users, Rocket, Send, Plus, Sparkles, PenLine } from 'lucide-react';
+import { Mail, Users, Rocket, Send, Plus, Sparkles, PenLine, FileText } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
@@ -25,6 +25,7 @@ export default function DashboardPage() {
     productCount: 0,
     totalSubscribers: 0,
     sentCount: 0,
+    contextCount: 0,
   });
 
   useEffect(() => {
@@ -55,6 +56,17 @@ export default function DashboardPage() {
         }
       } catch (e) {
         console.error('Failed to load local products:', e);
+      }
+
+      // Count contexts from localStorage
+      try {
+        const contexts = JSON.parse(localStorage.getItem(`letteros_contexts_${user.uid}`) || '[]');
+        setStats(prev => ({
+          ...prev,
+          contextCount: contexts.length,
+        }));
+      } catch (e) {
+        console.error('Failed to load contexts:', e);
       }
     }
   }, [user]);
@@ -93,6 +105,13 @@ export default function DashboardPage() {
       icon: Send,
       href: '/analytics',
     },
+    {
+      title: 'コンテキスト',
+      value: stats.contextCount,
+      description: '保存した経験談数',
+      icon: FileText,
+      href: '/contexts',
+    },
   ];
 
   const quickActions = [
@@ -129,7 +148,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (

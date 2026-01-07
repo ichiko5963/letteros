@@ -1,12 +1,12 @@
 // Send Newsletter Dialog Component
-// Reference: @docs/02_FRONTEND_DEVELOPMENT/UI_COMPONENTS_LIBRARY.md
+// With tag-based subscriber selection
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/components/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,17 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { sendNewsletterToProduct, sendTestEmail } from '@/lib/actions/send-newsletter';
-import { Loader2, Send, Mail, CheckCircle2 } from 'lucide-react';
+import { Loader2, Send, Mail, CheckCircle2, Tag, Users } from 'lucide-react';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { cn } from '@/lib/utils';
+
+interface Subscriber {
+  id: string;
+  email: string;
+  name?: string;
+  tags: string[];
+}
 
 interface SendDialogProps {
   newsletterId: string;
@@ -39,6 +49,7 @@ export function SendDialog({
   productName,
   subscriberCount = 0,
 }: SendDialogProps) {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [testEmail, setTestEmail] = useState('');
@@ -46,11 +57,67 @@ export function SendDialog({
   const [testSent, setTestSent] = useState(false);
   const [sendComplete, setSendComplete] = useState(false);
 
-  async function handleSendToProduct() {
+  // Tag selection state
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [loadingTags, setLoadingTags] = useState(false);
+
+  // Load subscribers and tags when dialog opens
+  useEffect(() => {
+    if (open && user) {
+      loadSubscribersAndTags();
+    }
+  }, [open, user]);
+
+  const loadSubscribersAndTags = async () => {
+    if (!user) return;
+
+    setLoadingTags(true);
+    try {
+      const q = query(
+        collection(db, 'subscribers'),
+        where('userId', '==', user.uid)
+      );
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Subscriber[];
+
+      setSubscribers(data);
+
+      // Extract unique tags
+      const tags = [...new Set(data.flatMap(s => s.tags))].sort();
+      setAllTags(tags);
+    } catch (error) {
+      console.error('Failed to load subscribers:', error);
+    } finally {
+      setLoadingTags(false);
+    }
+  };
+
+  // Calculate filtered subscriber count
+  const filteredSubscribers = selectedTags.length === 0
+    ? subscribers
+    : subscribers.filter(s => selectedTags.some(tag => s.tags.includes(tag)));
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
+  async function handleSendToSubscribers() {
     setIsSending(true);
 
     try {
-      const result = await sendNewsletterToProduct(newsletterId);
+      // Get emails of filtered subscribers
+      const emails = filteredSubscribers.map(s => s.email);
+
+      const result = await sendNewsletterToProduct(newsletterId, emails);
       console.log('Send result:', result);
       setSendComplete(true);
     } catch (error) {
@@ -79,6 +146,15 @@ export function SendDialog({
     }
   }
 
+  const handleClose = () => {
+    setOpen(false);
+    // Reset state when closing
+    setTimeout(() => {
+      setSendComplete(false);
+      setSelectedTags([]);
+    }, 300);
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -87,7 +163,7 @@ export function SendDialog({
           配信
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         {!sendComplete ? (
           <>
             <DialogHeader>
@@ -98,6 +174,7 @@ export function SendDialog({
             </DialogHeader>
 
             <div className="space-y-6">
+              {/* Test Send */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">テスト送信</CardTitle>
@@ -142,51 +219,111 @@ export function SendDialog({
                 </CardContent>
               </Card>
 
-              {hasProduct && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">本番配信</CardTitle>
-                    <CardDescription>
-                      {productName} の購読者 {subscriberCount} 名に配信します
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button
-                      onClick={handleSendToProduct}
-                      disabled={isSending || subscriberCount === 0}
-                      className="w-full"
-                    >
-                      {isSending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          配信中...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="mr-2 h-4 w-4" />
-                          {subscriberCount} 名に配信
-                        </>
+              {/* Tag Selection */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Tag className="h-4 w-4" />
+                    配信先を選択
+                  </CardTitle>
+                  <CardDescription>
+                    タグで配信対象を絞り込めます（未選択 = 全員に配信）
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {loadingTags ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : allTags.length > 0 ? (
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        {allTags.map(tag => {
+                          const count = subscribers.filter(s => s.tags.includes(tag)).length;
+                          const isSelected = selectedTags.includes(tag);
+                          return (
+                            <Button
+                              key={tag}
+                              variant={isSelected ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => toggleTag(tag)}
+                              className={cn(
+                                isSelected && "bg-violet-500 hover:bg-violet-600"
+                              )}
+                            >
+                              {tag} ({count})
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      {selectedTags.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedTags([])}
+                          className="text-muted-foreground"
+                        >
+                          選択をクリア
+                        </Button>
                       )}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              {!hasProduct && (
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground text-center">
-                      ローンチコンテンツが設定されていないため、本番配信できません。
-                      <br />
-                      メルマガ編集画面でローンチコンテンツを選択してください。
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      タグが設定された購読者がいません
                     </p>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
+
+                  {/* Subscriber count summary */}
+                  <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">
+                        {filteredSubscribers.length}名に配信
+                      </p>
+                      {selectedTags.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          選択タグ: {selectedTags.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Send Button */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">本番配信</CardTitle>
+                  <CardDescription>
+                    {selectedTags.length > 0
+                      ? `「${selectedTags.join('」「')}」タグの購読者に配信します`
+                      : '全ての購読者に配信します'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={handleSendToSubscribers}
+                    disabled={isSending || filteredSubscribers.length === 0}
+                    className="w-full"
+                  >
+                    {isSending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        配信中...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        {filteredSubscribers.length}名に配信
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>
+              <Button variant="outline" onClick={handleClose}>
                 閉じる
               </Button>
             </DialogFooter>
@@ -203,12 +340,12 @@ export function SendDialog({
                 メルマガの配信が完了しました
               </h3>
               <p className="text-sm text-muted-foreground">
-                購読者へのメール送信を開始しました
+                {filteredSubscribers.length}名への送信を開始しました
               </p>
             </div>
 
             <DialogFooter>
-              <Button onClick={() => setOpen(false)}>
+              <Button onClick={handleClose}>
                 閉じる
               </Button>
             </DialogFooter>

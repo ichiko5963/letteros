@@ -26,7 +26,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Loader2, Save, Rocket } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Rocket, Calendar } from 'lucide-react';
 
 const TONE_OPTIONS = [
     { value: 'storytelling', label: 'ストーリーテリング' },
@@ -62,6 +62,10 @@ export default function ProductEditPage() {
     const [urlType, setUrlType] = useState<'lp' | 'application' | 'purchase' | 'line' | 'other'>('lp');
     const [price, setPrice] = useState('');
     const [priceNote, setPriceNote] = useState('');
+    // ローンチ日フィールド
+    const [launchDate, setLaunchDate] = useState('');
+    const [launchEndDate, setLaunchEndDate] = useState('');
+    const [eventType, setEventType] = useState<'product' | 'event' | 'campaign' | 'other'>('product');
 
     useEffect(() => {
         if (!loading && !user) {
@@ -120,6 +124,10 @@ export default function ProductEditPage() {
         setUrlType(p.launchContent?.urlType || 'lp');
         setPrice(p.launchContent?.price || '');
         setPriceNote(p.launchContent?.priceNote || '');
+        // ローンチ日フィールド
+        setLaunchDate(p.launchContent?.launchDate || '');
+        setLaunchEndDate(p.launchContent?.launchEndDate || '');
+        setEventType(p.launchContent?.eventType || 'product');
     };
 
     const handleSave = async () => {
@@ -145,6 +153,10 @@ export default function ProductEditPage() {
                 urlType,
                 price,
                 priceNote,
+                // ローンチ日フィールド
+                launchDate,
+                launchEndDate,
+                eventType,
             },
         };
 
@@ -412,6 +424,58 @@ export default function ProductEditPage() {
                             />
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+            {/* Launch Schedule */}
+            <Card className="border-green-200 dark:border-green-800">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5" />
+                        ローンチスケジュール
+                    </CardTitle>
+                    <CardDescription>ローンチ日やイベント日を設定すると、AIが最適な配信タイミングを提案します</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="eventType">イベント種類</Label>
+                        <Select value={eventType} onValueChange={(v) => setEventType(v as any)}>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="product">プロダクトローンチ</SelectItem>
+                                <SelectItem value="event">イベント・セミナー</SelectItem>
+                                <SelectItem value="campaign">キャンペーン</SelectItem>
+                                <SelectItem value="other">その他</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="launchDate">ローンチ日 / イベント日</Label>
+                            <Input
+                                id="launchDate"
+                                type="date"
+                                value={launchDate}
+                                onChange={(e) => setLaunchDate(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="launchEndDate">終了日（任意）</Label>
+                            <Input
+                                id="launchEndDate"
+                                type="date"
+                                value={launchEndDate}
+                                onChange={(e) => setLaunchEndDate(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                        この日程を元に、AIがメルマガの配信スケジュールを自動提案します
+                    </p>
                 </CardContent>
             </Card>
 

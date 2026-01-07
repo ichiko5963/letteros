@@ -81,6 +81,9 @@ export interface Product {
     price?: string;             // 価格（例: "29,800円", "無料", "月額9,800円"）
     priceNote?: string;         // 価格の補足（例: "早期割引あり", "3日間限定"）
     offerDeadline?: string;     // オファーの期限
+    launchDate?: string;        // ローンチ日（例: "2024-02-15"）
+    launchEndDate?: string;     // ローンチ終了日（例: "2024-02-20"）
+    eventType?: 'product' | 'event' | 'campaign' | 'other';  // イベント種類
     generatedBy?: 'manual' | 'ai';
     aiAnswers?: {
       step1?: string;
